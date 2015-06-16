@@ -18,7 +18,8 @@ QMAKE_CXXFLAGS += -fopenmp -m64 -I${MKLROOT}/include
 LIBS +=  -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_lp64.a ${MKLROOT}/lib/intel64/libmkl_core.a ${MKLROOT}/lib/intel64/libmkl_intel_thread.a -Wl,--end-group -liomp5 -ldl -lpthread -lm
 
 SOURCES += main.cpp\
-        mainwindow.cpp
+        mainwindow.cpp \
+    multilinearmodel.cpp
 
 INCLUDEPATH += /usr/include/eigen3
 
@@ -29,6 +30,7 @@ HEADERS  += mainwindow.h \
     multilinearmodelbuilder.h \
     utils.hpp \
     test_tensor.h \
-    test_all.h
+    test_all.h \
+    multilinearmodel.h
 
 FORMS    += mainwindow.ui
