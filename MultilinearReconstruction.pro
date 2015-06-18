@@ -15,7 +15,7 @@ QMAKE_CXXFLAGS += -std=c++11
 
 # MKL
 QMAKE_CXXFLAGS += -fopenmp -m64 -I${MKLROOT}/include
-LIBS +=  -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_lp64.a ${MKLROOT}/lib/intel64/libmkl_core.a ${MKLROOT}/lib/intel64/libmkl_intel_thread.a -Wl,--end-group -liomp5 -ldl -lpthread -lm
+LIBS += -Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_lp64.a ${MKLROOT}/lib/intel64/libmkl_core.a ${MKLROOT}/lib/intel64/libmkl_intel_thread.a -Wl,--end-group -liomp5 -ldl -lpthread -lm
 
 SOURCES += main.cpp\
         mainwindow.cpp \
@@ -31,6 +31,8 @@ HEADERS  += mainwindow.h \
     utils.hpp \
     test_tensor.h \
     test_all.h \
-    multilinearmodel.h
+    multilinearmodel.h \
+    multilinearreconstructor.hpp \
+    constraints.h
 
 FORMS    += mainwindow.ui

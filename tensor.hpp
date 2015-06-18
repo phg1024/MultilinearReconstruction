@@ -131,14 +131,14 @@ private:
 
 // u = (A^T * v)^T = (v^T * A)^T
 template <>
-void Tensor2::modeProduct<0>(const Tensor1 &v, Tensor1 &u) {
+inline void Tensor2::modeProduct<0>(const Tensor1 &v, Tensor1 &u) {
   u = v.transpose() * data;
   u = u.transpose();
 }
 
 // u = A * v
 template <>
-void Tensor2::modeProduct<1>(const Tensor1 &v, Tensor1 &u) {
+inline void Tensor2::modeProduct<1>(const Tensor1 &v, Tensor1 &u) {
   u = data * v;
 }
 
@@ -349,7 +349,7 @@ private:
 };
 
 template<>
-void Tensor3::unfold<0>(Tensor2 &t) const {
+inline void Tensor3::unfold<0>(Tensor2 &t) const {
   int l = layers(), m = rows(), n = cols();
   t.resize(l, m*n);
   #pragma omp parallel for
@@ -359,7 +359,7 @@ void Tensor3::unfold<0>(Tensor2 &t) const {
 }
 
 template<>
-void Tensor3::unfold<1>(Tensor2 &t) const {
+inline void Tensor3::unfold<1>(Tensor2 &t) const {
   int l = layers(), m = rows(), n = cols();
   t.resize(m, l*n);
   #pragma omp parallel for
@@ -373,7 +373,7 @@ void Tensor3::unfold<1>(Tensor2 &t) const {
 }
 
 template<>
-void Tensor3::unfold<2>(Tensor2 &t) const {
+inline void Tensor3::unfold<2>(Tensor2 &t) const {
   int l = layers(), m = rows(), n = cols();
   t.resize(n, l*m);
   for(int i=0, offset=0;i<l;++i, offset+=m) {
@@ -387,7 +387,7 @@ void Tensor3::unfold<2>(Tensor2 &t) const {
 }
 
 template <>
-void Tensor3::fold<0>(const Tensor2 &A, int l, int m, int n, Tensor3 &t){
+inline void Tensor3::fold<0>(const Tensor2 &A, int l, int m, int n, Tensor3 &t){
   t.resize(l, m, n);
   #pragma omp parallel for
   for(int i=0;i<l;++i) {
@@ -400,7 +400,7 @@ void Tensor3::fold<0>(const Tensor2 &A, int l, int m, int n, Tensor3 &t){
 }
 
 template <>
-void Tensor3::fold<1>(const Tensor2 &A, int l, int m, int n, Tensor3 &t){
+inline void Tensor3::fold<1>(const Tensor2 &A, int l, int m, int n, Tensor3 &t){
   t.resize(l, m, n);
   #pragma omp parallel for
   for(int i=0;i<l;++i) {
@@ -413,7 +413,7 @@ void Tensor3::fold<1>(const Tensor2 &A, int l, int m, int n, Tensor3 &t){
 }
 
 template <>
-void Tensor3::fold<2>(const Tensor2 &A, int l, int m, int n, Tensor3 &t){
+inline void Tensor3::fold<2>(const Tensor2 &A, int l, int m, int n, Tensor3 &t){
   t.resize(l, m, n);
   for(int i=0,offset=0;i<l;++i,offset+=m) {
     for(int j=0;j<m;++j) {
@@ -425,7 +425,7 @@ void Tensor3::fold<2>(const Tensor2 &A, int l, int m, int n, Tensor3 &t){
 }
 
 template <>
-void Tensor3::modeProduct<0>(const Tensor1 &v, Tensor2 &A) {
+inline void Tensor3::modeProduct<0>(const Tensor1 &v, Tensor2 &A) {
   int l = layers(), m = rows(), n = cols();
   A.resize(m, n);
   #pragma omp parallel for
@@ -441,7 +441,7 @@ void Tensor3::modeProduct<0>(const Tensor1 &v, Tensor2 &A) {
 }
 
 template <>
-void Tensor3::modeProduct<1>(const Tensor1 &v, Tensor2 &A) {
+inline void Tensor3::modeProduct<1>(const Tensor1 &v, Tensor2 &A) {
   int l = layers(), m = rows(), n = cols();
   A.resize(l, n);
   #pragma omp parallel for
@@ -457,7 +457,7 @@ void Tensor3::modeProduct<1>(const Tensor1 &v, Tensor2 &A) {
 }
 
 template <>
-void Tensor3::modeProduct<2>(const Tensor1 &v, Tensor2 &A) {
+inline void Tensor3::modeProduct<2>(const Tensor1 &v, Tensor2 &A) {
   int l = layers(), m = rows();
   A.resize(l, m);
   for(int i=0;i<l;++i) {
@@ -466,7 +466,7 @@ void Tensor3::modeProduct<2>(const Tensor1 &v, Tensor2 &A) {
 }
 
 template <>
-void Tensor3::modeProduct<0>(const Tensor2 &A, Tensor3 &t) {
+inline void Tensor3::modeProduct<0>(const Tensor2 &A, Tensor3 &t) {
   int l = layers(), m = rows(), n = cols();
   assert(A.cols() == l); // size(A) = rows(A) x l
   Tensor2 tu = unfold<0>();   // l x (m*n)
@@ -480,7 +480,7 @@ void Tensor3::modeProduct<0>(const Tensor2 &A, Tensor3 &t) {
 }
 
 template <>
-void Tensor3::modeProduct<1>(const Tensor2 &A, Tensor3 &t) {
+inline void Tensor3::modeProduct<1>(const Tensor2 &A, Tensor3 &t) {
   int l = layers(), m = rows(), n = cols();
   assert(A.cols() == m); // size(A) = rows(A) x m
   Tensor2 tu = unfold<1>();
@@ -493,7 +493,7 @@ void Tensor3::modeProduct<1>(const Tensor2 &A, Tensor3 &t) {
 }
 
 template <>
-void Tensor3::modeProduct<2>(const Tensor2 &A, Tensor3 &t) {
+inline void Tensor3::modeProduct<2>(const Tensor2 &A, Tensor3 &t) {
   int l = layers(), m = rows(), n = cols();
   assert(A.cols() == n);
   Tensor2 tu = unfold<2>();
