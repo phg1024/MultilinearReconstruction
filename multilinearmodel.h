@@ -9,16 +9,19 @@ public:
   MultilinearModel(){}
   explicit MultilinearModel(const string &filename);
 
-  MultilinearModel project(const vector<int> &indices);
+  MultilinearModel project(const vector<int> &indices) const;
 
-  void updateTM0(const Tensor1 &w);
-  void updateTM1(const Tensor1 &w);
-  void updateTMWithTM0(const Tensor1 &w);
-  void updateTMWithTM1(const Tensor1 &w);
-  void applyWeights(const Tensor1 &w0, const Tensor1 &w1);
+  void UpdateTM0(const Tensor1 &w);
+  void UpdateTM1(const Tensor1 &w);
+  void UpdateTMWithTM0(const Tensor1 &w);
+  void UpdateTMWithTM1(const Tensor1 &w);
+  void ApplyWeights(const Tensor1 &w0, const Tensor1 &w1);
 
+  const Tensor1& GetTM() const {
+    return tm;
+  }
 private:
-  void unfold();
+  void UnfoldCoreTensor();
 
 private:
   Tensor3 core;

@@ -2,11 +2,11 @@
 
 MultilinearModel::MultilinearModel(const string &filename)
 {
-  core.read(filename);
-  unfold();
+  core.Read(filename);
+  UnfoldCoreTensor();
 }
 
-MultilinearModel MultilinearModel::project(const vector<int> &indices)
+MultilinearModel MultilinearModel::project(const vector<int> &indices) const
 {
   //cout << "creating projected tensors..." << endl;
   // create a projected version of the model
@@ -24,40 +24,40 @@ MultilinearModel MultilinearModel::project(const vector<int> &indices)
     }
   }
 
-  newmodel.unfold();
+  newmodel.UnfoldCoreTensor();
 
   return newmodel;
 }
 
-void MultilinearModel::updateTM0(const Tensor1 &w)
+void MultilinearModel::UpdateTM0(const Tensor1 &w)
 {
-  tm0 = core.modeProduct<0>(w);
+  tm0 = core.ModeProduct<0>(w);
 }
 
-void MultilinearModel::updateTM1(const Tensor1 &w)
+void MultilinearModel::UpdateTM1(const Tensor1 &w)
 {
-  tm1 = core.modeProduct<1>(w);
+  tm1 = core.ModeProduct<1>(w);
 }
 
-void MultilinearModel::updateTMWithTM0(const Tensor1 &w)
+void MultilinearModel::UpdateTMWithTM0(const Tensor1 &w)
 {
-  tm = tm0.modeProduct<0>(w);
+  tm = tm0.ModeProduct<0>(w);
 }
 
-void MultilinearModel::updateTMWithTM1(const Tensor1 &w)
+void MultilinearModel::UpdateTMWithTM1(const Tensor1 &w)
 {
-  tm = tm1.modeProduct<0>(w);
+  tm = tm1.ModeProduct<0>(w);
 }
 
-void MultilinearModel::applyWeights(const Tensor1 &w0, const Tensor1 &w1)
+void MultilinearModel::ApplyWeights(const Tensor1 &w0, const Tensor1 &w1)
 {
-  updateTM0(w0);
-  updateTM1(w1);
-  updateTMWithTM0(w1);
+  UpdateTM0(w0);
+  UpdateTM1(w1);
+  UpdateTMWithTM0(w1);
 }
 
-void MultilinearModel::unfold()
+void MultilinearModel::UnfoldCoreTensor()
 {
-  tu0 = core.unfold(0);
-  tu1 = core.unfold(1);
+  tu0 = core.Unfold(0);
+  tu1 = core.Unfold(1);
 }

@@ -1,8 +1,6 @@
 #ifndef MULTILINEARRECONSTRUCTOR_HPP
 #define MULTILINEARRECONSTRUCTOR_HPP
 
-#include "common.h"
-
 #ifndef MKL_BLAS
 #define MKL_BLAS MKL_DOMAIN_BLAS
 #endif
@@ -13,22 +11,19 @@
 #include <eigen3/Eigen/Geometry>
 #include <eigen3/Eigen/LU>
 
-using namespace std;
-using namespace Eigen;
-
+#include "common.h"
 #include "multilinearmodel.h"
 #include "constraints.h"
+#include "costfunctions.h"
 #include "utils.hpp"
 
-struct CameraParameters {
-  double fx, fy, cx, cy;
-};
+using namespace Eigen;
 
 struct ModelParameters {
   static const int nFACSDim = 47;
   VectorXd Wid;               // identity weights
   VectorXd Wexp, Wexp_FACS;   // expression weights
-  Quaterniond R;              // rotation
+  Vector3d R;              // rotation
   Vector3d T;                 // translation
 };
 
@@ -129,23 +124,23 @@ template <typename Constraint>
 class SingleImageReconstructor {
 public:
   SingleImageReconstructor(){}
-  void loadModel(const string &filename);
-  void loadPriors(const string &filename_id, const string &filename_exp);
-  void setIndices(const vector<int> &indices_vec) { indices = indices_vec; }
+  void LoadModel(const string &filename);
+  void LoadPriors(const string &filename_id, const string &filename_exp);
+  void SetIndices(const vector<int> &indices_vec) { indices = indices_vec; }
 
-  void setConstraints(const vector<Constraint> &cons) { params_recon.cons = cons; }
-  void setImageSize(int w, int h) {
+  void SetConstraints(const vector<Constraint> &cons) { params_recon.cons = cons; }
+  void SetImageSize(int w, int h) {
     params_recon.imageWidth = w;
     params_recon.imageHeight = h;
   }
-  void setOptimizationParameters(const OptimizationParameters &params) {
+  void SetOptimizationParameters(const OptimizationParameters &params) {
     params_opt = params;
   }
 
-  bool reconstruct();
+  bool Reconstruct();
 
-  const VectorXd &getIdentityWeights() const { return params_model.Wid; }
-  const VectorXd &getExpressionWeights() const { return params_model.Wexp_FACS; }
+  const VectorXd &GetIdentityWeights() const { return params_model.Wid; }
+  const VectorXd &GetExpressionWeights() const { return params_model.Wexp_FACS; }
 
 private:
   MultilinearModel model, model_projected;
@@ -159,20 +154,35 @@ private:
 };
 
 template <typename Constraint>
-void SingleImageReconstructor<Constraint>::loadModel(const string &filename)
+void SingleImageReconstructor<Constraint>::LoadModel(const string &filename)
 {
   model = MultilinearModel(filename);
 }
 
 template <typename Constraint>
-void SingleImageReconstructor<Constraint>::loadPriors(const string &filename_id, const string &filename_exp)
+void SingleImageReconstructor<Constraint>::LoadPriors(const string &filename_id, const string &filename_exp)
 {
   prior.load(filename_id, filename_exp);
 }
 
 template <typename Constraint>
-bool SingleImageReconstructor<Constraint>::reconstruct()
+bool SingleImageReconstructor<Constraint>::Reconstruct()
 {
+  // Initialize parameters
+
+  // Camera parameters
+  params_cam.focal_length = glm::vec2(50.0, 50.0);
+  params_cam.image_plane_center = glm::vec2(params_recon.imageWidth * 0.5,
+                                            params_recon.imageHeight * 0.5);
+  params_cam.image_size = glm::vec2(params_recon.imageWidth,
+                                    params_recon.imageHeight);
+
+  // Model parameters
+  params_model.Wexp(0) = 1.0;
+  params_model.Wid = prior.Wid_avg;
+  params_model.R = Vector3d(0, 0, 0);
+  params_model.T = Vector3d(0, 0, 0);
+
   return true;
 }
 

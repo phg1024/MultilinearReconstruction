@@ -3,6 +3,8 @@
 
 #include "common.h"
 
+#include "glm/glm.hpp"
+
 #ifndef MKL_BLAS
 #define MKL_BLAS MKL_DOMAIN_BLAS
 #endif
@@ -16,14 +18,16 @@ using namespace Eigen;
 
 template <typename T>
 struct Constraint {
+  Constraint() : vidx(-1), weight(1.0), data(T()) {}
+
   int vidx;         // vertex index
   double weight;    // weight for this constraint
   T data;
 };
 
-using Constraint2D = Constraint<Vector2d>;
-using Constraint3D = Constraint<Vector3d>;
-using Constraint2D_Depth = Constraint<Vector3d>;
+using Constraint2D = Constraint<glm::dvec2>;
+using Constraint3D = Constraint<glm::dvec3>;
+using Constraint2D_Depth = Constraint<glm::dvec3>;
 
 #endif // CONSTRAINTS_H
 

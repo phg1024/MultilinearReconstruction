@@ -69,7 +69,7 @@ public:
       }
     }
 
-    distmap.write("distmap.txt");
+    distmap.Write("distmap.txt");
 
     // perform svd to get core tensor
     cout << "Performing SVD on the blendshapes ..." << endl;
@@ -83,15 +83,15 @@ public:
     auto tcore = std::get<0>(comp2);
     auto tus = std::get<1>(comp2);
     cout << "writing core tensor ..." << endl;
-    tcore.write("blendshape_core.tensor");
+    tcore.Write("blendshape_core.tensor");
     cout << "writing U tensors ..." << endl;
     for(int i=0;i<tus.size();i++) {
-      tus[i].write("blendshape_u_" + toString(ms[i]) + ".tensor");
+      tus[i].Write("blendshape_u_" + toString(ms[i]) + ".tensor");
     }
 
     cout << "Validation begins ..." << endl;
     Tensor3 tin;
-    tin.read("blendshape_core.tensor");
+    tin.Read("blendshape_core.tensor");
 
     cout << "Core tensor dimensions = "
       << tin.layers() << "x"
@@ -109,7 +109,7 @@ public:
     }
     cout << "Max difference io = " << maxDiffio << endl;
 
-    tin = tin.modeProduct(tus[0], 0).modeProduct(tus[1], 1);
+    tin = tin.ModeProduct(tus[0], 0).ModeProduct(tus[1], 1);
 
     cout << "Dimensions = "
       << tin.layers() << "x"

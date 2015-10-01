@@ -1,7 +1,4 @@
-#ifndef TEST_TENSOR_H
-#define TEST_TENSOR_H
-
-#include "tensor.hpp"
+#include "../tensor.hpp"
 
 inline void testTensors() {
   Tensor1 t(10);
@@ -20,7 +17,7 @@ inline void testTensors() {
 
   t2.print("T2");
 
-  cout << "T2 unfolded" << t2.unfold() << endl;
+  cout << "T2 unfolded:\n" << t2.Unfold() << endl;
 
 
   Tensor3 t3(2, 3, 4);
@@ -35,25 +32,25 @@ inline void testTensors() {
   t3.print("T3");
 
   cout << "unfold in mode 0:" << endl;
-  Tensor2 t3_unfold0 = t3.unfold(0);
+  Tensor2 t3_unfold0 = t3.Unfold(0);
   t3_unfold0.print("T30");
-  Tensor3 t3new = Tensor3::fold<0>(t3_unfold0, 2, 3, 4);
+  Tensor3 t3new = Tensor3::Fold<0>(t3_unfold0, 2, 3, 4);
   t3new.print("fold back");
 
   cout << "unfold in mode 1:" << endl;
-  Tensor2 t3_unfold1 = t3.unfold(1);
+  Tensor2 t3_unfold1 = t3.Unfold(1);
   t3_unfold1.print("T31");
-  Tensor3 t3new2 = Tensor3::fold<1>(t3_unfold1, 2, 3, 4);
+  Tensor3 t3new2 = Tensor3::Fold<1>(t3_unfold1, 2, 3, 4);
   t3new2.print("fold back");
 
   cout << "unfold in mode 1:" << endl;
-  Tensor2 t3_unfold2 = t3.unfold(2);
+  Tensor2 t3_unfold2 = t3.Unfold(2);
   t3_unfold2.print("T32");
-  Tensor3 t3new3 = Tensor3::fold<2>(t3_unfold2, 2, 3, 4);
+  Tensor3 t3new3 = Tensor3::Fold<2>(t3_unfold2, 2, 3, 4);
   t3new3.print("fold back");
 
   cout << "mode product" << endl;
-  Tensor3 tm0 = t3.modeProduct(t2, 0);
+  Tensor3 tm0 = t3.ModeProduct(t2, 0);
   tm0.print("TM0");
 
   Tensor2 t22(3, 3);
@@ -64,7 +61,7 @@ inline void testTensors() {
   }
   t22.print("T22");
 
-  Tensor3 tm1 = t3.modeProduct<1>(t22);
+  Tensor3 tm1 = t3.ModeProduct<1>(t22);
   tm1.print("TM1");
 
   Tensor2 t23(3, 4);
@@ -75,7 +72,7 @@ inline void testTensors() {
   }
   t23.print("T23");
 
-  Tensor3 tm2 = t3.modeProduct<2>(t23);
+  Tensor3 tm2 = t3.ModeProduct<2>(t23);
   tm2.print("TM2");
 
   auto comp = t3.svd();
@@ -89,9 +86,9 @@ inline void testTensors() {
   tu1.print("u1");
   tu2.print("u2");
 
-  auto trecon = tcore.modeProduct(tu0, 0)
-    .modeProduct(tu1, 1)
-    .modeProduct(tu2, 2);
+  auto trecon = tcore.ModeProduct(tu0, 0)
+    .ModeProduct(tu1, 1)
+    .ModeProduct(tu2, 2);
   trecon.print("recon");
   t3.print("ref");
 
@@ -107,14 +104,10 @@ inline void testTensors() {
   trecon = tcore;
   for(size_t i=0;i<modes.size();i++) {
     auto& tui = tus[i];
-    trecon = trecon.modeProduct(tui, modes[i]);
+    trecon = trecon.ModeProduct(tui, modes[i]);
     tui.print("ui");
   }
 
   trecon.print("recon");
   t3.print("ref");
 }
-
-
-#endif // TEST_TENSOR_H
-

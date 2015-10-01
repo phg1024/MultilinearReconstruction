@@ -13,20 +13,29 @@ include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
 CHECK_CXX_COMPILER_FLAG("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
 if(COMPILER_SUPPORTS_CXX11)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 elseif(COMPILER_SUPPORTS_CXX0X)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 else()
     message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
 endif()
 
+# Qt5
+find_package(Qt5Core)
+find_package(Qt5Widgets)
+find_package(Qt5OpenGL)
+
 # OpenGL
 find_package(OpenGL REQUIRED)
+find_package(GLUT REQUIRED)
+include_directories( ${OPENGL_INCLUDE_DIRS}  ${GLUT_INCLUDE_DIRS} )
+link_libraries(${OPENGL_LIBRARIES} ${GLUT_LIBRARY})
 find_package(GLEW REQUIRED)
 if (GLEW_FOUND)
     include_directories(${GLEW_INCLUDE_DIRS})
     link_libraries(${GLEW_LIBRARIES})
 endif()
+
 
 # Eigen
 include_directories(/usr/include/eigen3)
@@ -40,44 +49,16 @@ set(MKLLIBS "-Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_lp64.a ${MKLR
 include_directories("/home/phg/SDKs/PhGLib/include")
 set(PhGLib "-L/home/phg/SDKs/PhGLib/lib -lPhGLib")
 
-# Qt5
-find_package(Qt5Core)
-find_package(Qt5Widgets)
-find_package(Qt5OpenGL)
-
 # Tell CMake to create the helloworld executable
-add_library(multilinearmodel multilinearmodel.cpp)
-target_link_libraries(multilinearmodel
-        Qt5::Widgets
-        Qt5::OpenGL
-        ${MKLLIBS}
-        ${PhGLib})
-
-add_library(basicmesh basicmesh.cpp)
-target_link_libraries(basicmesh
-        Qt5::Widgets
-        Qt5::OpenGL
-        ${MKLLIBS}
-        ${PhGLib})
-
-add_library(meshvisualizer meshvisualizer.cpp)
-target_link_libraries(meshvisualizer
-        Qt5::Widgets
-        Qt5::OpenGL
-        ${MKLLIBS}
-        ${PhGLib})
-
-add_executable(MultilinearModelBuilder multilinearmodelbuilder.cpp)
-add_executable(MultilinearReconstruction main.cpp mainwindow.cpp multilinearreconstructor.hpp utils.hpp)
+add_executable(test_mesh_visualizer test_mesh_visualizer.cpp)
+add_executable(test_tensors test_tensors.cpp)
 
 # Use the Widgets module from Qt 5.
-target_link_libraries(MultilinearReconstruction multilinearmodel basicmesh
-                      Qt5::Core
-                      Qt5::Widgets
-                      Qt5::OpenGL
-					  ${MKLLIBS}
-					  ${PhGLib})
+target_link_libraries(test_mesh_visualizer basicmesh meshvisualizer
+        Qt5::Core
+        Qt5::Widgets
+        Qt5::OpenGL
+        ${MKLLIBS}
+        ${PhGLib})
 
-target_link_libraries(MultilinearModelBuilder multilinearmodel)
-
-add_subdirectory(tests)
+link_directories(..)
