@@ -51,8 +51,6 @@ set(PhGLib "-L/home/phg/SDKs/PhGLib/lib -lPhGLib")
 
 # Tell CMake to create the helloworld executable
 add_executable(test_mesh_visualizer test_mesh_visualizer.cpp)
-add_executable(test_tensors test_tensors.cpp)
-
 # Use the Widgets module from Qt 5.
 target_link_libraries(test_mesh_visualizer basicmesh meshvisualizer
         Qt5::Core
@@ -60,5 +58,9 @@ target_link_libraries(test_mesh_visualizer basicmesh meshvisualizer
         Qt5::OpenGL
         ${MKLLIBS}
         ${PhGLib})
+
+add_executable(test_tensors test_tensors.cpp)
+target_link_libraries(test_tensors tensor)
+
 
 link_directories(..)

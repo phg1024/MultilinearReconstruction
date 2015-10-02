@@ -22,6 +22,22 @@ public:
   Tensor2(int m, int n):data(MatrixXd(m, n)){}
   Tensor2(const MatrixXd &M):data(M){}
 
+  Tensor2(std::initializer_list<std::initializer_list<double>> l) {
+    int m = l.size();
+    int n = l.begin()->size();
+    resize(m, n);
+    auto li = l.begin();
+    for(int i=0;i<m;++i) {
+      auto lij = li->begin();
+      assert(li->size() == n);
+      for(int j=0;j<n;++j) {
+        data(i, j) = *lij;
+        ++lij;
+      }
+      ++li;
+    }
+  }
+
   void resize(int m, int n) {
     data.resize(m, n);
   }
@@ -68,9 +84,13 @@ public:
     return data.jacobiSvd(ComputeFullU | ComputeThinV);
   }
 
-  void print(const string& title = "", ostream& os = cout) const{
+  double norm() const {
+    return data.norm();
+  }
+
+  void Print(const string& title = "", ostream& os = cout) const {
     if( !title.empty() ) cout << title << " = " << endl;;
-    os << data << endl;
+    os << (*this) << endl;
   }
 
   bool Read(const string& filename) {
@@ -125,6 +145,12 @@ public:
   const double* rawptr() const { return data.data(); }
   double* rawptr() { return data.data(); }
 
+  friend Tensor2 operator+(const Tensor2& a, const Tensor2& b);
+  friend Tensor2 operator-(const Tensor2& a, const Tensor2& b);
+  friend bool operator==(const Tensor2& a, const Tensor2& b);
+  friend bool operator!=(const Tensor2& a, const Tensor2& b);
+  friend ostream& operator<<(ostream& os, const Tensor2& t);
+
 private:
   MatrixXd data;
 };
@@ -142,10 +168,68 @@ inline void Tensor2::ModeProduct<1>(const Tensor1 &v, Tensor1 &u) {
   u = data * v;
 }
 
+inline Tensor2 operator+(const Tensor2& a, const Tensor2& b) {
+  assert(a.rows() == b.rows());
+  assert(a.cols() == b.cols());
+  Tensor2 res(a.rows(), a.cols());
+  res.data = a.data + b.data;
+  return res;
+}
+
+inline Tensor2 operator-(const Tensor2& a, const Tensor2& b) {
+  assert(a.rows() == b.rows());
+  assert(a.cols() == b.cols());
+  Tensor2 res(a.rows(), a.cols());
+  res.data = a.data - b.data;
+  return res;
+}
+
+inline bool operator==(const Tensor2& a, const Tensor2 &b) {
+  if( a.rows() != b.rows() ) return false;
+  if( a.cols() != b.cols() ) return false;
+  for(int i=0;i<a.rows();++i) {
+    for(int j=0;j<b.cols();++j) {
+      if( a(i, j) != b(i, j) ) return false;
+    }
+  }
+  return true;
+}
+
+inline bool operator!=(const Tensor2& a, const Tensor2& b) {
+  return !(a == b);
+}
+
+inline ostream& operator<<(ostream& os, const Tensor2& t) {
+  os << "{" << t.data << "}";
+  return os;
+}
+
 class Tensor3 {
 public:
   Tensor3(){}
   Tensor3(int l, int m, int n):data(vector<Tensor2>(l, Tensor2(m, n))){}
+  Tensor3(std::initializer_list<std::initializer_list<std::initializer_list<double>>> l) {
+    int num_layers = l.size();
+    int num_rows = l.begin()->size();
+    int num_cols = l.begin()->begin()->size();
+    resize(num_layers, num_rows, num_cols);
+
+    auto li = l.begin();
+    for(int i=0;i<num_layers;++i) {
+      assert(li->size() == num_rows);
+      auto lij = li->begin();
+      for(int j=0;j<num_rows;++j) {
+        assert(lij->size() == num_cols);
+        auto lijk = lij->begin();
+        for(int k=0;k<num_cols;++k) {
+          data[i](j, k) = *lijk;
+          ++lijk;
+        }
+        ++lij;
+      }
+      ++li;
+    }
+  }
 
   void resize(int l, int m, int n) {
     data.resize(l, Tensor2(m, n));
@@ -278,12 +362,19 @@ public:
     return make_tuple(get<0>(res), Us[0], Us[1], Us[2]);
   }
 
-  void print(const string& title="") {
+  double norm() const {
+    int num_elements = layers() * rows() * cols();
+    return sqrt(std::accumulate(data.begin(), data.end(), 0.0,
+                                [](double val, const Tensor2& t){
+                                  double t_norm = t.norm();
+                                  return val + t_norm * t_norm;
+                                }));
+  }
+
+  void Print(const string& title="") const {
     if( !title.empty() )
       cout << title << " = " << endl;
-    for(int i=0;i<layers();i++) {
-      data[i].print();
-    }
+    cout << (*this) << endl;
   }
 
   bool Read(const string& filename) {
@@ -343,6 +434,13 @@ public:
       return false;
     }
   }
+
+  friend bool operator==(const Tensor3& a, const Tensor3& b);
+  friend bool operator!=(const Tensor3& a, const Tensor3& b);
+
+  friend Tensor3 operator+(const Tensor3& a, const Tensor3& b);
+  friend Tensor3 operator-(const Tensor3& a, const Tensor3& b);
+  friend ostream& operator<<(ostream& os, const Tensor3& t);
 
 private:
   vector<Tensor2> data;
@@ -503,6 +601,57 @@ inline void Tensor3::ModeProduct<2>(const Tensor2 &A, Tensor3 &t) {
     t2.col(i) = A * tu.col(i);
   }
   t = Fold<2>(t2, l, m, A.rows());
+}
+
+inline bool operator==(const Tensor3& a, const Tensor3& b) {
+  if( a.layers() != b.layers() ) return false;
+  if( a.rows() != b.rows() ) return false;
+  if( a.cols() != b.cols() ) return false;
+
+  for(int i=0;i<a.layers();++i) {
+    for(int j=0;j<a.rows();++j) {
+      for(int k=0;k<a.cols();++k) {
+        if( a(i, j, k) != b(i, j, k) ) return false;
+      }
+    }
+  }
+  return true;
+}
+
+inline Tensor3 operator+(const Tensor3& a, const Tensor3& b) {
+  assert(a.layers() == b.layers());
+  assert(a.rows() == b.rows());
+  assert(a.cols() == b.cols());
+  Tensor3 res(a.layers(), a.rows(), a.cols());
+  for(int i=0;i<a.layers();++i) {
+    res.data[i] = a.data[i] + b.data[i];
+  }
+  return res;
+}
+
+inline Tensor3 operator-(const Tensor3& a, const Tensor3& b) {
+  assert(a.layers() == b.layers());
+  assert(a.rows() == b.rows());
+  assert(a.cols() == b.cols());
+  Tensor3 res(a.layers(), a.rows(), a.cols());
+  for(int i=0;i<a.layers();++i) {
+    res.data[i] = a.data[i] - b.data[i];
+  }
+  return res;
+}
+
+inline bool operator!=(const Tensor3& a, const Tensor3& b) {
+  return !(a == b);
+}
+
+inline ostream& operator<<(ostream& os, const Tensor3& t) {
+  os << "{";
+  for(int i=0;i<t.layers();i++) {
+    os << t.data[i];
+    if( i < t.layers() - 1 ) os << endl;
+  }
+  os << "}";
+  return os;
 }
 
 #endif // TENSOR_HPP

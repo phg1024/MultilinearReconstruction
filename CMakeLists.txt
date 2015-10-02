@@ -67,11 +67,14 @@ target_link_libraries(meshvisualizer
         ${MKLLIBS}
         ${PhGLib})
 
+add_library(tensor tensor.hpp)
+target_link_libraries(tensor ${MKLLIBS})
+
 add_executable(MultilinearModelBuilder multilinearmodelbuilder.cpp)
 add_executable(MultilinearReconstruction main.cpp mainwindow.cpp multilinearreconstructor.hpp utils.hpp)
 
 # Use the Widgets module from Qt 5.
-target_link_libraries(MultilinearReconstruction multilinearmodel basicmesh
+target_link_libraries(MultilinearReconstruction multilinearmodel basicmesh tensor
                       Qt5::Core
                       Qt5::Widgets
                       Qt5::OpenGL
