@@ -11,10 +11,13 @@
 #include <eigen3/Eigen/Geometry>
 #include <eigen3/Eigen/LU>
 
+#include "ceres/ceres.h"
+
 #include "common.h"
-#include "multilinearmodel.h"
 #include "constraints.h"
 #include "costfunctions.h"
+#include "multilinearmodel.h"
+#include "parameters.h"
 #include "utils.hpp"
 
 using namespace Eigen;
@@ -139,8 +142,17 @@ public:
 
   bool Reconstruct();
 
-  const VectorXd &GetIdentityWeights() const { return params_model.Wid; }
-  const VectorXd &GetExpressionWeights() const { return params_model.Wexp_FACS; }
+  const Vector3d& GetRotation() const { return params_model.R; }
+  const Vector3d& GetTranslation() const { return params_model.T; }
+  const VectorXd& GetIdentityWeights() const { return params_model.Wid; }
+  const VectorXd& GetExpressionWeights() const { return params_model.Wexp_FACS; }
+  const Tensor1& GetGeometry() const { return model.GetTM(); }
+  const CameraParameters GetCameraParameters() const { return params_cam; }
+
+protected:
+  void OptimizeForPose();
+  void OptimizeForExpression();
+  void OptimizeForIdentity();
 
 private:
   MultilinearModel model, model_projected;
@@ -169,23 +181,86 @@ template <typename Constraint>
 bool SingleImageReconstructor<Constraint>::Reconstruct()
 {
   // Initialize parameters
+  cout << "Reconstruction begins." << endl;
 
   // Camera parameters
-  params_cam.focal_length = glm::vec2(50.0, 50.0);
+  params_cam.focal_length = glm::vec2(1000.0, 1000.0);
   params_cam.image_plane_center = glm::vec2(params_recon.imageWidth * 0.5,
                                             params_recon.imageHeight * 0.5);
   params_cam.image_size = glm::vec2(params_recon.imageWidth,
                                     params_recon.imageHeight);
 
   // Model parameters
-  params_model.Wexp(0) = 1.0;
+
+  // Make a neutral face
+  params_model.Wexp_FACS.resize(ModelParameters::nFACSDim);
+  params_model.Wexp_FACS(0) = 1.0;
+  for(int i=1;i<ModelParameters::nFACSDim;++i) params_model.Wexp_FACS(i) = 0.0;
+  params_model.Wexp = params_model.Wexp_FACS.transpose() * prior.Uexp;
+
+  // Use average identity
   params_model.Wid = prior.Wid_avg;
+
+  // No rotation and translation
   params_model.R = Vector3d(0, 0, 0);
-  params_model.T = Vector3d(0, 0, 0);
+  params_model.T = Vector3d(0, 0, -5.0);
+
+  model.ApplyWeights(params_model.Wid, params_model.Wexp);
+
+  // Reconstruction begins
+  const int kMaxIterations = 8;
+
+  int iters = 0;
+  while( iters++ < kMaxIterations ) {
+    OptimizeForPose();
+  }
+
+  cout << "Reconstruction done." << endl;
 
   return true;
 }
 
-#endif // MULTILINEARRECONSTRUCTOR_HPP
+template <typename Constraint>
+void SingleImageReconstructor<Constraint>::OptimizeForPose() {
+  ceres::Problem problem;
+  vector<double> params{params_model.R[0], params_model.R[1], params_model.R[2],
+                        params_model.T[0], params_model.T[1], params_model.T[2]};
 
+  for(int i=0;i<indices.size();++i) {
+    auto model_i = model.project(vector<int>(1, indices[i]));
+    model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+    ceres::CostFunction *cost_function =
+      new ceres::NumericDiffCostFunction<PoseCostFunction, ceres::CENTRAL, 2, 6>(
+        new PoseCostFunction(model_i,
+                             params_recon.cons[i],
+                             params_cam));
+    problem.AddResidualBlock(cost_function, NULL, params.data());
+  }
+
+  ceres::Solver::Options options;
+  options.linear_solver_type = ceres::DENSE_QR;
+  options.minimizer_progress_to_stdout = true;
+  ceres::Solver::Summary summary;
+  Solve(options, &problem, &summary);
+
+  cout << summary.BriefReport() << endl;
+  Vector3d newR(params[0], params[1], params[2]);
+  Vector3d newT(params[3], params[4], params[5]);
+  cout << "R: " << params_model.R.transpose() << " -> " << newR.transpose() << endl;
+  cout << "T: " << params_model.T.transpose() << " -> " << newT.transpose() << endl;
+  params_model.R = newR;
+  params_model.T = newT;
+}
+
+template <typename Constraint>
+void SingleImageReconstructor<Constraint>::OptimizeForExpression() {
+
+}
+
+template <typename Constraint>
+void SingleImageReconstructor<Constraint>::OptimizeForIdentity() {
+
+}
+
+#endif // MULTILINEARRECONSTRUCTOR_HPP
 

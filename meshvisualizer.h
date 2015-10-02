@@ -3,9 +3,10 @@
 
 #include <QtOpenGL/QGLWidget>
 
-#include "common.h"
 #include "basicmesh.h"
+#include "common.h"
 #include "constraints.h"
+#include "parameters.h"
 
 class MeshVisualizer : public QGLWidget
 {
@@ -26,6 +27,9 @@ public slots:
   void BindImage(const QImage& img);
   void BindLandmarks(const vector<int>& landmarks_in);
 
+  void SetMeshRotationTranslation(const Vector3d& R, const Vector3d& T);
+  void SetCameraParameters(const CameraParameters& cam_params);
+
 protected:
   void CreateTexture();
 
@@ -36,6 +40,9 @@ private:
   GLuint image_tex;
 
   vector<int> landmarks;
+
+  Vector3d mesh_rotation, mesh_translation;
+  CameraParameters camera_params;
 
   double face_alpha;
   bool draw_faces, draw_edges;

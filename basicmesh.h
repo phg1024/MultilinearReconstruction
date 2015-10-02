@@ -33,6 +33,7 @@ public:
 
   bool LoadOBJMesh(const string &filename);
   void ComputeNormals();
+  void UpdateVertices(const VectorXd& vertices);
 
 private:
   MatrixX3d verts;

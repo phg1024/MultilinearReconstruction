@@ -37,8 +37,10 @@ include_directories(/usr/include/eigen3)
 
 # MKL
 include_directories(${MKL_INCLUDE_DIRS})
-set(MKLROOT "/home/phg/SDKs/intel/composer_xe_2015.2.164/mkl")
-set(MKLLIBS "-Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_lp64.a ${MKLROOT}/lib/intel64/libmkl_core.a ${MKLROOT}/lib/intel64/libmkl_intel_thread.a -Wl,--end-group -liomp5 -ldl -lpthread -lm")
+set(MKLROOT "/home/phg/SDKs/intel/composer_xe_2015/mkl")
+set(MKLLIBS_DIRS "${MKLROOT}/lib/intel64/")
+link_directories(${MKLLIBS_DIRS})
+set(MKLLIBS "-Wl,--start-group -lmkl_intel_lp64 -lmkl_core -lmkl_intel_thread -Wl,--end-group -liomp5 -ldl -lpthread -lm")
 
 # PhGLib
 include_directories("/home/phg/SDKs/PhGLib/include")
@@ -49,7 +51,11 @@ find_package(Qt5Core)
 find_package(Qt5Widgets)
 find_package(Qt5OpenGL)
 
-# Tell CMake to create the helloworld executable
+# Ceres solver
+find_package(Ceres REQUIRED)
+include_directories(${CERES_INCLUDE_DIRS})
+
+# Targets
 add_library(multilinearmodel multilinearmodel.cpp)
 target_link_libraries(multilinearmodel
         Qt5::Widgets
@@ -74,10 +80,8 @@ target_link_libraries(meshvisualizer
 add_library(tensor tensor.hpp)
 target_link_libraries(tensor ${MKLLIBS})
 
-add_executable(MultilinearModelBuilder multilinearmodelbuilder.cpp)
+# Multilinear reconstruction module
 add_executable(MultilinearReconstruction main.cpp mainwindow.cpp multilinearreconstructor.hpp utils.hpp)
-
-# Use the Widgets module from Qt 5.
 target_link_libraries(MultilinearReconstruction
                       meshvisualizer
                       multilinearmodel
@@ -87,8 +91,11 @@ target_link_libraries(MultilinearReconstruction
                       Qt5::Widgets
                       Qt5::OpenGL
 					  ${MKLLIBS}
-					  ${PhGLib})
+					  ${PhGLib}
+                      ${CERES_LIBRARIES})
 
+# Multilinear model builder
+add_executable(MultilinearModelBuilder multilinearmodelbuilder.cpp)
 target_link_libraries(MultilinearModelBuilder multilinearmodel)
 
 add_subdirectory(tests)

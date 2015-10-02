@@ -68,3 +68,13 @@ void BasicMesh::ComputeNormals()
   }
   cout << "Normals computed." << endl;
 }
+
+void BasicMesh::UpdateVertices(const VectorXd &vertices) {
+  const int num_vertices = NumVertices();
+#pragma omp parallel for
+  for(int i=0, offset=0;i<num_vertices;++i,offset+=3) {
+    verts(i, 0) = vertices(offset+0);
+    verts(i, 1) = vertices(offset+1);
+    verts(i, 2) = vertices(offset+2);
+  }
+}
