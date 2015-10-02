@@ -1,6 +1,8 @@
 #include "mainwindow.h"
 #include <QApplication>
+#include <GL/freeglut_std.h>
 
+#include "meshvisualizer.h"
 #include "multilinearreconstructor.hpp"
 
 vector<int> LoadIndices(const string& filename) {
@@ -45,18 +47,26 @@ vector<Constraint2D> LoadConstraints(const string& filename) {
 
 int main(int argc, char *argv[])
 {
+  QApplication a(argc, argv);
+  glutInit(&argc, argv);
   SingleImageReconstructor<Constraint2D> recon;
   recon.LoadModel("/home/phg/Data/Multilinear/blendshape_core.tensor");
   recon.LoadPriors("/home/phg/Data/Multilinear/blendshape_u_0_aug.tensor",
                    "/home/phg/Data/Multilinear/blendshape_u_1_aug.tensor");
-  recon.SetIndices(LoadIndices("/home/phg/Data/Multilinear/landmarks_73.txt"));
-  recon.SetConstraints(LoadConstraints("/home/phg/Data/InternetRecon/yaoming/0.pts"));
-  QImage img("/home/phg/Data/InternetRecon/yaoming/0.png");
+  auto landmarks = LoadIndices("/home/phg/Data/Multilinear/landmarks_73.txt");
+  recon.SetIndices(landmarks);
+  auto constraints = LoadConstraints("/home/phg/Data/InternetRecon/yaoming/4.pts");
+  recon.SetConstraints(constraints);
+  QImage img("/home/phg/Data/InternetRecon/yaoming/4.jpg");
   cout << "image size: " << img.width() << "x" << img.height() << endl;
   recon.SetImageSize(img.width(), img.height());
 
-  QApplication a(argc, argv);
-  MainWindow w;
+  BasicMesh mesh("/home/phg/Data/Multilinear/template.obj");
+  MeshVisualizer w("reconstruction result", mesh);
+  w.BindConstraints(constraints);
+  w.BindImage(img);
+  w.BindLandmarks(landmarks);
+  w.resize(img.width(), img.height());
   w.show();
 
   return a.exec();

@@ -4,11 +4,14 @@
 /// @brief Load a mesh from an OBJ file
 BasicMesh::BasicMesh(const string &filename)
 {
-  assert(LoadOBJMesh(filename));
+  if(!LoadOBJMesh(filename)) {
+    exit(-1);
+  }
   ComputeNormals();
 }
 
 bool BasicMesh::LoadOBJMesh(const string& filename) {
+  cout << "loading " << filename << endl;
   PhGUtils::OBJLoader loader;
   if(!loader.load(filename)) {
     cerr << "Failed to load mesh file " << filename << endl;
@@ -39,6 +42,7 @@ bool BasicMesh::LoadOBJMesh(const string& filename) {
       faces.row(faceidx) = Vector3i(F[i].v[0], F[i].v[j], F[i].v[j+1]);
     }
   }
+
   cout << filename << " loaded." << endl;
   cout << nfaces << " faces." << endl;
   cout << V.size() << " vertices." << endl;
@@ -48,6 +52,8 @@ bool BasicMesh::LoadOBJMesh(const string& filename) {
 void BasicMesh::ComputeNormals()
 {
   norms.resize(faces.rows(), 3);
+
+#pragma omp parallel for
   for(int i=0;i<faces.rows();++i) {
     auto v0 = Vector3d(verts.row(faces(i, 0)));
     auto v1 = Vector3d(verts.row(faces(i, 1)));

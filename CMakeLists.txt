@@ -22,6 +22,10 @@ endif()
 
 # OpenGL
 find_package(OpenGL REQUIRED)
+find_package(GLUT REQUIRED)
+include_directories( ${OPENGL_INCLUDE_DIRS}  ${GLUT_INCLUDE_DIRS} )
+link_libraries(${OPENGL_LIBRARIES} ${GLUT_LIBRARY})
+
 find_package(GLEW REQUIRED)
 if (GLEW_FOUND)
     include_directories(${GLEW_INCLUDE_DIRS})
@@ -74,7 +78,11 @@ add_executable(MultilinearModelBuilder multilinearmodelbuilder.cpp)
 add_executable(MultilinearReconstruction main.cpp mainwindow.cpp multilinearreconstructor.hpp utils.hpp)
 
 # Use the Widgets module from Qt 5.
-target_link_libraries(MultilinearReconstruction multilinearmodel basicmesh tensor
+target_link_libraries(MultilinearReconstruction
+                      meshvisualizer
+                      multilinearmodel
+                      basicmesh
+                      tensor
                       Qt5::Core
                       Qt5::Widgets
                       Qt5::OpenGL

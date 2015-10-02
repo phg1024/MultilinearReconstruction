@@ -178,7 +178,6 @@ TEST_CASE("Tensor SVD", "[Tensor3]") {
                            {{0.0261176, 2.34689},
                              {-7.16435,   -1.04234}}})).norm() < 1e-4);
 
-
   trecon = tcore;
   for(size_t i=0;i<modes.size();i++) {
     auto& tui = tus[i];
