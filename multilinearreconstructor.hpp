@@ -213,9 +213,12 @@ bool SingleImageReconstructor<Constraint>::Reconstruct()
   int iters = 0;
   while( iters++ < kMaxIterations ) {
     OptimizeForPose();
+    OptimizeForExpression();
+    OptimizeForIdentity();
   }
 
   cout << "Reconstruction done." << endl;
+  model.ApplyWeights(params_model.Wid, params_model.Wexp);
 
   return true;
 }
@@ -254,12 +257,97 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose() {
 
 template <typename Constraint>
 void SingleImageReconstructor<Constraint>::OptimizeForExpression() {
+  // Create view matrix
+  auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1], params_model.R[2]);
+  glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
+                                   glm::dvec3(params_model.T[0], params_model.T[1], params_model.T[2]));
+  glm::dmat4 Mview = Tmat * Rmat;
 
+  VectorXd params = params_model.Wexp_FACS;
+
+  // Define the optimization problem
+  ceres::Problem problem;
+
+  for(int i=0;i<indices.size();++i) {
+    auto model_i = model.project(vector<int>(1, indices[i]));
+    model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+    ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction> *cost_function =
+      new ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction>(
+        new ExpressionCostFunction(model_i,
+                                   params_recon.cons[i],
+                                   params.size(),
+                                   Mview,
+                                   prior.Uexp,
+                                   params_cam));
+    cost_function->AddParameterBlock(params.size());
+    cost_function->SetNumResiduals(2);
+    problem.AddResidualBlock(cost_function, NULL, params.data());
+  }
+
+  for(int i=0;i<params.size();++i) {
+    problem.SetParameterLowerBound(params.data(), i, 0.0);
+    problem.SetParameterUpperBound(params.data(), i, 1.0);
+  }
+
+  // Solve it
+  ceres::Solver::Options options;
+  options.linear_solver_type = ceres::DENSE_QR;
+  options.minimizer_progress_to_stdout = true;
+  ceres::Solver::Summary summary;
+  Solve(options, &problem, &summary);
+
+  cout << summary.BriefReport() << endl;
+
+  // Update the model parameters
+  cout << params_model.Wexp_FACS.transpose() << endl
+       << " -> " << endl
+       << params.transpose() << endl;
+  params_model.Wexp_FACS = params;
+  params_model.Wexp = params_model.Wexp_FACS.transpose() * prior.Uexp;
 }
 
 template <typename Constraint>
 void SingleImageReconstructor<Constraint>::OptimizeForIdentity() {
+  // Create view matrix
+  auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1], params_model.R[2]);
+  glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
+                                   glm::dvec3(params_model.T[0], params_model.T[1], params_model.T[2]));
+  glm::dmat4 Mview = Tmat * Rmat;
 
+  VectorXd params = params_model.Wid;
+
+  // Define the optimization problem
+  ceres::Problem problem;
+
+  for(int i=0;i<indices.size();++i) {
+    auto model_i = model.project(vector<int>(1, indices[i]));
+    model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+    ceres::DynamicNumericDiffCostFunction<IdentityCostFunction> *cost_function =
+      new ceres::DynamicNumericDiffCostFunction<IdentityCostFunction>(
+        new IdentityCostFunction(model_i,
+                                   params_recon.cons[i],
+                                   params.size(),
+                                   Mview,
+                                   params_cam));
+    cost_function->AddParameterBlock(params.size());
+    cost_function->SetNumResiduals(2);
+    problem.AddResidualBlock(cost_function, NULL, params.data());
+  }
+
+  // Solve it
+  ceres::Solver::Options options;
+  options.linear_solver_type = ceres::DENSE_QR;
+  options.minimizer_progress_to_stdout = true;
+  ceres::Solver::Summary summary;
+  Solve(options, &problem, &summary);
+
+  cout << summary.BriefReport() << endl;
+
+  // Update the model parameters
+  cout << params_model.Wid.transpose() << endl
+  << " -> " << endl
+  << params.transpose() << endl;
+  params_model.Wid = params;
 }
 
 #endif // MULTILINEARRECONSTRUCTOR_HPP
