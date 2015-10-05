@@ -13,6 +13,7 @@
 
 #include "ceres/ceres.h"
 
+#include "basicmesh.h"
 #include "common.h"
 #include "constraints.h"
 #include "costfunctions.h"
@@ -132,8 +133,8 @@ public:
   void LoadModel(const string &filename);
   void LoadPriors(const string &filename_id, const string &filename_exp);
   void SetIndices(const vector<int> &indices_vec) { indices = indices_vec; }
-
   void SetConstraints(const vector<Constraint> &cons) { params_recon.cons = cons; }
+  void SetContourIndices(const vector<vector<int>> &contour_points) { contour_indices = contour_points; }
   void SetImageSize(int w, int h) {
     params_recon.imageWidth = w;
     params_recon.imageHeight = h;
@@ -155,11 +156,14 @@ protected:
   void OptimizeForPose();
   void OptimizeForExpression();
   void OptimizeForIdentity();
+  void UpdateContourIndices();
 
 private:
   MultilinearModel model, model_projected;
   vector<int> indices;
+  vector<vector<int>> contour_indices;
   MultilinearModelPrior prior;
+  BasicMesh mesh;   // for mesh topology
 
   CameraParameters params_cam;
   ModelParameters params_model;
@@ -223,6 +227,7 @@ bool SingleImageReconstructor<Constraint>::Reconstruct()
     OptimizeForPose();
     OptimizeForExpression();
     OptimizeForIdentity();
+    UpdateContourIndices();
 
     // Adjust weights
     prior.weight_Wid -= 8.0;
@@ -371,5 +376,48 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity() {
   params_model.Wid = params;
 }
 
+template <typename Constraint>
+void SingleImageReconstructor<Constraint>::UpdateContourIndices() {
+  // Create view matrix
+  auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1], params_model.R[2]);
+  glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
+                                   glm::dvec3(params_model.T[0], params_model.T[1], params_model.T[2]));
+  glm::dmat4 Mview = Tmat * Rmat;
+
+  vector<glm::dvec4> candidates(contour_indices.size());
+  for(int j=0;j<contour_indices.size();++j) {
+    vector<double> dot_products(contour_indices[j].size(), 0.0);
+    vector<glm::dvec4> contour_vertices(contour_indices[j].size());
+    for(int i=0;i<contour_indices[j].size();++i) {
+      auto model_ji = model.project(vector<int>(1, contour_indices[j][i]));
+      model_ji.ApplyWeights(params_model.Wid, params_model.Wexp);
+      auto tm = model_ji.GetTM();
+      glm::dvec4 p0(tm[0], tm[1], tm[2], 1.0);
+
+      // Apply the rotation and translation as well
+      glm::dvec4 p = Mview * p0;
+      contour_vertices[i] = p;
+
+      // Get the neighboring vertices of this vertex
+      vector<int> neighbors = mesh.GetNeighbors(contour_indices[j][i]);
+      // Compute the deformed vertex positions
+      vector<glm::dvec4> neighbor_vertices(neighbors.size());
+      // @todo work on this!
+
+      // Compute the normal for this vertex
+      glm::dvec3 n;
+      // @todo work on this!
+
+      // Compute the dot product of normal and view direction
+      dot_products[i] = fabs(glm::dot(n, glm::dvec3(p.x, p.y, p.z)));
+    }
+
+    auto min_iter = std::min_element(dot_products.begin(), dot_products.end());
+    candidates.push_back(contour_vertices[min_iter - dot_products.begin()]);
+  }
+
+  // Project all points to image plane and choose the closest ones as new
+  // contour points.
+}
 #endif // MULTILINEARRECONSTRUCTOR_HPP
 

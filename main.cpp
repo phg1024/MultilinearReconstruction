@@ -2,6 +2,9 @@
 #include <QApplication>
 #include <GL/freeglut_std.h>
 
+#include "boost/algorithm/string/split.hpp"
+#include "boost/algorithm/string/classification.hpp"
+
 #include "meshvisualizer.h"
 #include "multilinearreconstructor.hpp"
 #include "glog/logging.h"
@@ -13,6 +16,35 @@ vector<int> LoadIndices(const string& filename) {
   std::copy(iter, istream_iterator<int>(), back_inserter(indices));
   cout << indices.size() << " landmarks loaded." << endl;
   return indices;
+}
+
+vector<vector<int>> LoadContourIndices(const string& filename) {
+  ifstream fin(filename);
+  vector<string> lines;
+  while( fin ) {
+    string line;
+    std::getline(fin, line);
+    lines.push_back(line);
+  }
+
+  vector<vector<int>> contour_indices(lines.size());
+  std::transform(lines.begin(), lines.end(), contour_indices.begin(),
+                 [](const string& line){
+                   cout << "line: " << line << endl;
+                   vector<string> parts;
+                   boost::algorithm::split(parts, line, boost::algorithm::is_any_of(" "), boost::algorithm::token_compress_on);
+                   auto parts_end = std::remove_if(parts.begin(), parts.end(),
+                                                   [](const string& s) {
+                                                     return s.empty();
+                                                   });
+                   vector<int> indices(std::distance(parts.begin(), parts_end));
+                   std::transform(parts.begin(), parts_end, indices.begin(),
+                                  [](const string& s) {
+                                    return std::stoi(s);
+                                  });
+                   return indices;
+                 });
+  return contour_indices;
 }
 
 namespace std {
@@ -67,9 +99,12 @@ int main(int argc, char *argv[])
     constraint.data.y = img.height() - 1 - constraint.data.y;
   }
   recon.SetConstraints(constraints);
+  auto contour_indices = LoadContourIndices("/home/phg/Data/Multilinear/contourpoints.txt");
+  recon.SetContourIndices(contour_indices);
+  BasicMesh mesh("/home/phg/Data/Multilinear/template.obj");
+  recon.SetMeshStructure(mesh);
   recon.Reconstruct();
 
-  BasicMesh mesh("/home/phg/Data/Multilinear/template.obj");
   auto tm = recon.GetGeometry();
   mesh.UpdateVertices(tm);
   auto R = recon.GetRotation();
