@@ -2,6 +2,7 @@
 #define MESHVISUALIZER_H
 
 #include <QtOpenGL/QGLWidget>
+#include <QKeyEvent>
 
 #include "basicmesh.h"
 #include "common.h"
@@ -32,6 +33,8 @@ public slots:
 
 protected:
   void CreateTexture();
+
+  void keyPressEvent(QKeyEvent* event);
 
 private:
   BasicMesh mesh;

@@ -45,8 +45,8 @@ struct PoseCostFunction {
     /// @todo Create projection matrix using camera focal length
     glm::dvec3 q = ProjectPoint(p, Mview, cam_params);
 
-    residual[0] = q.x - constraint.data.x;
-    residual[1] = q.y - constraint.data.y;
+    residual[0] = (q.x - constraint.data.x) * constraint.weight;
+    residual[1] = (q.y - constraint.data.y) * constraint.weight;
 
     /*
     cout << "(" << q.x << ", " << q.y << ")"
@@ -82,8 +82,8 @@ struct IdentityCostFunction {
                                  Mview,
                                  cam_params);
     // Compute residual
-    residual[0] = q.x - constraint.data.x;
-    residual[1] = q.y - constraint.data.y;
+    residual[0] = (q.x - constraint.data.x) * constraint.weight;
+    residual[1] = (q.y - constraint.data.y) * constraint.weight;
 
     return true;
   }
@@ -117,8 +117,8 @@ struct ExpressionCostFunction {
     glm::dvec3 p(tm[0], tm[1], tm[2]);
     glm::dvec3 q = ProjectPoint(p, Mview, cam_params);
     // Compute residual
-    residual[0] = q.x - constraint.data.x;
-    residual[1] = q.y - constraint.data.y;
+    residual[0] = (q.x - constraint.data.x) * constraint.weight;
+    residual[1] = (q.y - constraint.data.y) * constraint.weight;
     return true;
   }
 
@@ -129,6 +129,24 @@ struct ExpressionCostFunction {
   glm::dmat4 Mview;
   const MatrixXd& Uexp;
   CameraParameters cam_params;
+};
+
+struct PriorCostFunction {
+  PriorCostFunction(const VectorXd& prior_vec, const MatrixXd& inv_cov_mat, double weight)
+    : prior_vec(prior_vec), inv_cov_mat(inv_cov_mat), weight(weight) {}
+
+  bool operator()(const double* const* w, double* residual) const {
+    const int params_length = prior_vec.size();
+    VectorXd diff = Map<const VectorXd>(w[0], params_length) - prior_vec;
+
+    // Simply Mahalanobis distance between w and prior_vec
+    residual[0] = sqrt(weight * diff.transpose() * (inv_cov_mat * diff));
+    return true;
+  }
+
+  const VectorXd& prior_vec;
+  const MatrixXd& inv_cov_mat;
+  double weight;
 };
 
 #endif // COSTFUNCTIONS_H

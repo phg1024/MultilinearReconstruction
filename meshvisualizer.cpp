@@ -47,7 +47,6 @@ void MeshVisualizer::paintGL() {
   glClearColor(1, 1, 1, 0.0);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glEnable(GL_DEPTH_TEST);
-  glDisable(GL_CULL_FACE);
 
   if( mesh.NumFaces() > 0 ) {
     // Draw image
@@ -81,48 +80,44 @@ void MeshVisualizer::paintGL() {
 #endif
 
     // Setup Camera's model-view-projection matrix
-    // Can equivalently build a camera matrix directly, and use glLoadMatrixd instead
-    if( 0 ) {
-      glMatrixMode(GL_PROJECTION);
-      glLoadIdentity();
-      gluPerspective(45.0,
-                     static_cast<float>(width()) / static_cast<float>(height()),
-                     2.0, 100.00);
-      glViewport(0, 0, width(), height());
+    glMatrixMode(GL_PROJECTION);
+    glm::dmat4 Mproj = glm::perspective(45.0,
+                                        static_cast<double>(width()) /
+                                        static_cast<double>(height()),
+                                        1.0, 10.0);
 
-      glMatrixMode(GL_MODELVIEW);
-      glLoadIdentity();
-      gluLookAt(0.0, 0.0, 4.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
-    } else {
-      glMatrixMode(GL_PROJECTION);
-      glm::dmat4 Mproj = glm::perspective(45.0,
-                                          static_cast<double>(width()) / static_cast<double>(height()),
-                                          1.0, 10.0);
+    glLoadMatrixd(&Mproj[0][0]);
+    glViewport(0, 0, width(), height());
 
-      glLoadMatrixd(&Mproj[0][0]);
-      glViewport(0, 0, width(), height());
+    glm::dmat4 Rmat = glm::eulerAngleYXZ(mesh_rotation[0],
+                                         mesh_rotation[1],
+                                         mesh_rotation[2]);
 
-      glm::dmat4 Rmat = glm::eulerAngleYXZ(mesh_rotation[0],
-                                           mesh_rotation[1],
-                                           mesh_rotation[2]);
+    glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
+                                     glm::dvec3(mesh_translation[0],
+                                                mesh_translation[1],
+                                                mesh_translation[2]));
 
-      glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
-                                       glm::dvec3(mesh_translation[0],
-                                                  mesh_translation[1],
-                                                  mesh_translation[2]));
-
-      glm::dmat4 MV = Tmat * Rmat;
-      glMatrixMode(GL_MODELVIEW);
-      glLoadMatrixd(&MV[0][0]);
-    }
+    glm::dmat4 MV = Tmat * Rmat;
+    glMatrixMode(GL_MODELVIEW);
+    glLoadMatrixd(&MV[0][0]);
 
     glPushMatrix();
 
     EnableLighting();
 
     if( draw_faces ) {
+      glEnable(GL_CULL_FACE);
+      glCullFace(GL_BACK);
       /// Draw faces
       glColor4d(.75, .75, .75, face_alpha);
+      GLfloat mat_diffuse[] = {0.5, 0.5, 0.5, face_alpha};
+      GLfloat mat_specular[] = {0.25, 0.25, 0.25, face_alpha};
+      GLfloat mat_shininess[] = {75.0};
+      glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
+      glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, mat_shininess);
+      glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, mat_specular);
+
       glBegin(GL_TRIANGLES);
       for (int i = 0; i < mesh.NumFaces(); ++i) {
         auto face_i = mesh.face(i);
@@ -135,6 +130,7 @@ void MeshVisualizer::paintGL() {
         glNormal3dv(n.data());glVertex3dv(v2.data());
       }
       glEnd();
+      glDisable(GL_CULL_FACE);
     }
 
     if( draw_edges ) {
@@ -299,4 +295,31 @@ void MeshVisualizer::SetMeshRotationTranslation(const Vector3d &R,
 
 void MeshVisualizer::SetCameraParameters(const CameraParameters &cam_params) {
   camera_params = cam_params;
+}
+
+void MeshVisualizer::keyPressEvent(QKeyEvent *event) {
+  switch(event->key()) {
+    case Qt::Key_F: {
+      draw_faces = !draw_faces;
+      repaint();
+      event->accept();
+      break;
+    }
+    case Qt::Key_Equal:
+    case Qt::Key_Plus: {
+      face_alpha += 0.05;
+      face_alpha = min(face_alpha, 1.0);
+      repaint();
+      event->accept();
+      break;
+    }
+    case Qt::Key_hyphen:
+    case Qt::Key_Minus: {
+      face_alpha -= 0.05;
+      face_alpha = max(face_alpha, 0.05);
+      repaint();
+      event->accept();
+      break;
+    }
+  }
 }

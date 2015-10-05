@@ -60,6 +60,7 @@ struct MultilinearModelPrior {
     fwid.read(reinterpret_cast<char*>(Wid_avg.data()), sizeof(double)*ndims);
     fwid.read(reinterpret_cast<char*>(Wid0.data()), sizeof(double)*ndims);
     fwid.read(reinterpret_cast<char*>(sigma_Wid.data()), sizeof(double)*ndims*ndims);
+    inv_sigma_Wid = sigma_Wid.inverse();
 
     int m, n;
     fwid.read(reinterpret_cast<char*>(&m), sizeof(int));
@@ -95,6 +96,7 @@ struct MultilinearModelPrior {
     fwexp.read(reinterpret_cast<char*>(Wexp_avg.data()), sizeof(double)*ndims);
     fwexp.read(reinterpret_cast<char*>(Wexp0.data()), sizeof(double)*ndims);
     fwexp.read(reinterpret_cast<char*>(sigma_Wexp.data()), sizeof(double)*ndims*ndims);
+    inv_sigma_Wexp = sigma_Wexp.inverse();
 
     fwexp.read(reinterpret_cast<char*>(&m), sizeof(int));
     fwexp.read(reinterpret_cast<char*>(&n), sizeof(int));
@@ -207,14 +209,26 @@ bool SingleImageReconstructor<Constraint>::Reconstruct()
 
   model.ApplyWeights(params_model.Wid, params_model.Wexp);
 
+  // Assign lower weights to contour points
+  const int num_contour_points = 15;
+  for(int i=0;i<num_contour_points;++i) {
+    params_recon.cons[i].weight = 0.5;
+  }
+
   // Reconstruction begins
   const int kMaxIterations = 8;
-
+  prior.weight_Wid = 64.0;
   int iters = 0;
   while( iters++ < kMaxIterations ) {
     OptimizeForPose();
     OptimizeForExpression();
     OptimizeForIdentity();
+
+    // Adjust weights
+    prior.weight_Wid -= 8.0;
+    for(int i=0;i<num_contour_points;++i) {
+      params_recon.cons[i].weight = sqrt(params_recon.cons[i].weight);
+    }
   }
 
   cout << "Reconstruction done." << endl;
@@ -325,14 +339,21 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity() {
     ceres::DynamicNumericDiffCostFunction<IdentityCostFunction> *cost_function =
       new ceres::DynamicNumericDiffCostFunction<IdentityCostFunction>(
         new IdentityCostFunction(model_i,
-                                   params_recon.cons[i],
-                                   params.size(),
-                                   Mview,
-                                   params_cam));
+                                 params_recon.cons[i],
+                                 params.size(),
+                                 Mview,
+                                 params_cam));
     cost_function->AddParameterBlock(params.size());
     cost_function->SetNumResiduals(2);
     problem.AddResidualBlock(cost_function, NULL, params.data());
   }
+
+  ceres::DynamicNumericDiffCostFunction<PriorCostFunction> *prior_cost_function =
+    new ceres::DynamicNumericDiffCostFunction<PriorCostFunction>(
+      new PriorCostFunction(prior.Wid_avg, prior.inv_sigma_Wid, prior.weight_Wid));
+  prior_cost_function->AddParameterBlock(params.size());
+  prior_cost_function->SetNumResiduals(1);
+  problem.AddResidualBlock(prior_cost_function, NULL, params.data());
 
   // Solve it
   ceres::Solver::Options options;
