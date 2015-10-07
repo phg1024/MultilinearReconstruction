@@ -14,6 +14,8 @@ vector<int> LoadIndices(const string& filename) {
   vector<int> indices;
   istream_iterator<int> iter(fin);
   std::copy(iter, istream_iterator<int>(), back_inserter(indices));
+  for(int i=0;i<indices.size();++i) cout << indices[i] << endl;
+
   cout << indices.size() << " landmarks loaded." << endl;
   return indices;
 }
@@ -24,7 +26,8 @@ vector<vector<int>> LoadContourIndices(const string& filename) {
   while( fin ) {
     string line;
     std::getline(fin, line);
-    lines.push_back(line);
+    if( !line.empty() )
+      lines.push_back(line);
   }
 
   vector<vector<int>> contour_indices(lines.size());
@@ -84,25 +87,40 @@ int main(int argc, char *argv[])
   glutInit(&argc, argv);
   google::InitGoogleLogging(argv[0]);
 
+  if( argc < 3 ) {
+    cout << "Usage: ./MultilinearReconstruction image_file pts_file" << endl;
+    return -1;
+  }
+  string image_filename = argv[1];
+  string pts_filename = argv[2];
+
   SingleImageReconstructor<Constraint2D> recon;
   recon.LoadModel("/home/phg/Data/Multilinear/blendshape_core.tensor");
   recon.LoadPriors("/home/phg/Data/Multilinear/blendshape_u_0_aug.tensor",
                    "/home/phg/Data/Multilinear/blendshape_u_1_aug.tensor");
-  QImage img("/home/phg/Data/InternetRecon/yaoming/4.jpg");
+  QImage img(image_filename.c_str());
   cout << "image size: " << img.width() << "x" << img.height() << endl;
+  double image_size = max(img.width(), img.height());
+  double scale_ratio = 1.0;
+  const double max_image_size = 640.0;
+  if( image_size > max_image_size ) {
+    scale_ratio = max_image_size / image_size;
+    img = img.scaled( img.width() * scale_ratio, img.height() * scale_ratio);
+  }
   recon.SetImageSize(img.width(), img.height());
   auto landmarks = LoadIndices("/home/phg/Data/Multilinear/landmarks_73.txt");
   recon.SetIndices(landmarks);
-  auto constraints = LoadConstraints("/home/phg/Data/InternetRecon/yaoming/4.pts");
+  auto constraints = LoadConstraints(pts_filename);
   // Preprocess constraints
   for(auto& constraint : constraints) {
+    constraint.data = constraint.data * scale_ratio;
     constraint.data.y = img.height() - 1 - constraint.data.y;
   }
   recon.SetConstraints(constraints);
   auto contour_indices = LoadContourIndices("/home/phg/Data/Multilinear/contourpoints.txt");
   recon.SetContourIndices(contour_indices);
   BasicMesh mesh("/home/phg/Data/Multilinear/template.obj");
-  recon.SetMeshStructure(mesh);
+  recon.SetMesh(mesh);
   recon.Reconstruct();
 
   auto tm = recon.GetGeometry();
@@ -114,7 +132,8 @@ int main(int argc, char *argv[])
   MeshVisualizer w("reconstruction result", mesh);
   w.BindConstraints(constraints);
   w.BindImage(img);
-  w.BindLandmarks(landmarks);
+  w.BindLandmarks(recon.GetIndices());
+  w.BindUpdatedLandmarks(recon.GetUpdatedIndices());
   w.SetMeshRotationTranslation(R, T);
   w.SetCameraParameters(cam_params);
   w.resize(img.width(), img.height());

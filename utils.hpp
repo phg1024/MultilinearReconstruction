@@ -3,6 +3,13 @@
 
 #include "common.h"
 #include <typeinfo>
+#include <limits>
+
+inline void wait()
+{
+  std::cout << "Press ENTER to continue...";
+  std::cin.ignore( std::numeric_limits <std::streamsize> ::max(), '\n' );
+}
 
 // misc
 template <typename T>

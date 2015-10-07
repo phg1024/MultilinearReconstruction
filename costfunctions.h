@@ -15,7 +15,7 @@ using namespace Eigen;
 glm::dvec3 ProjectPoint(const glm::dvec3& p, const glm::dmat4& Mview, const CameraParameters& cam_params) {
   glm::dmat4 Mproj = glm::perspective(45.0,
                                       (double)cam_params.image_size.x / (double)cam_params.image_size.y,
-                                      1.0, 10.0);
+                                      1.0, 100.0);
   glm::ivec4 viewport(0, 0, cam_params.image_size.x, cam_params.image_size.y);
   return glm::project(p, Mview, Mproj, viewport);
 }
@@ -29,13 +29,6 @@ struct PoseCostFunction {
   bool operator()(const double* const params, double* residual) const {
     auto tm = model.GetTM();
     glm::dvec3 p(tm[0], tm[1], tm[2]);
-
-    /*
-    glm::dmat4 Mproj = glm::perspective(45.0,
-                                        (double)cam_params.image_size.x / (double)cam_params.image_size.y,
-                                        1.0, 10.0);
-    glm::ivec4 viewport(0, 0, cam_params.image_size.x, cam_params.image_size.y);
-    */
 
     auto Rmat = glm::eulerAngleYXZ(params[0], params[1], params[2]);
     glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
@@ -107,7 +100,8 @@ struct ExpressionCostFunction {
       Mview(Mview), Uexp(Uexp), cam_params(cam_params) {}
 
   bool operator()(const double* const* wexp, double* residual) const {
-    VectorXd weights = Map<const VectorXd>(wexp[0], params_length).transpose() * Uexp;
+    VectorXd wexp_vec = Map<const VectorXd>(wexp[0], params_length).eval();
+    VectorXd weights = (wexp_vec.transpose() * Uexp).eval();
 
     // Apply the weight vector to the model
     model.UpdateTMWithTM0(weights);
@@ -115,6 +109,7 @@ struct ExpressionCostFunction {
     // Project the point to image plane
     auto tm = model.GetTM();
     glm::dvec3 p(tm[0], tm[1], tm[2]);
+    //cout << p.x << ", " << p.y << ", " << p.z << endl;
     glm::dvec3 q = ProjectPoint(p, Mview, cam_params);
     // Compute residual
     residual[0] = (q.x - constraint.data.x) * constraint.weight;
@@ -140,12 +135,32 @@ struct PriorCostFunction {
     VectorXd diff = Map<const VectorXd>(w[0], params_length) - prior_vec;
 
     // Simply Mahalanobis distance between w and prior_vec
-    residual[0] = sqrt(weight * diff.transpose() * (inv_cov_mat * diff));
+    residual[0] = sqrt(fabs(weight * diff.transpose() * (inv_cov_mat * diff)));
     return true;
   }
 
   const VectorXd& prior_vec;
   const MatrixXd& inv_cov_mat;
+  double weight;
+};
+
+struct ExpressionPriorCostFunction {
+  ExpressionPriorCostFunction(const VectorXd& prior_vec, const MatrixXd& inv_cov_mat,
+                    const MatrixXd& Uexp, double weight)
+    : prior_vec(prior_vec), inv_cov_mat(inv_cov_mat), Uexp(Uexp), weight(weight) {}
+
+  bool operator()(const double* const* w, double* residual) const {
+    const int params_length = 47;
+    VectorXd diff = Map<const VectorXd>(w[0], 47).transpose() * Uexp - prior_vec;
+
+    // Simply Mahalanobis distance between w and prior_vec
+    residual[0] = sqrt(fabs(weight * diff.transpose() * (inv_cov_mat * diff)));
+    return true;
+  }
+
+  const VectorXd& prior_vec;
+  const MatrixXd& inv_cov_mat;
+  const MatrixXd& Uexp;
   double weight;
 };
 

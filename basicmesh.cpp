@@ -1,3 +1,5 @@
+#include <mutex>
+#include "omp.h"
 #include "basicmesh.h"
 #include "Geometry/MeshLoader.h"
 
@@ -36,6 +38,7 @@ bool BasicMesh::LoadOBJMesh(const string& filename) {
   }
 
   faces.resize(nfaces, 3);
+  vert_face_map.clear();
   // triangulate the mesh
   for (int i = 0, faceidx = 0; i < F.size(); ++i) {
     for (int j = 1; j < F[i].v.size()-1; ++j, ++faceidx) {
@@ -52,27 +55,56 @@ bool BasicMesh::LoadOBJMesh(const string& filename) {
 void BasicMesh::ComputeNormals()
 {
   norms.resize(faces.rows(), 3);
+  vertex_norms.resize(verts.size(), 3);
+  vertex_norms.setZero();
+  vector<double> area_sum(verts.size(), 0.0);
 
+  omp_lock_t writelock;
+
+  omp_init_lock(&writelock);
 #pragma omp parallel for
   for(int i=0;i<faces.rows();++i) {
-    auto v0 = Vector3d(verts.row(faces(i, 0)));
-    auto v1 = Vector3d(verts.row(faces(i, 1)));
-    auto v2 = Vector3d(verts.row(faces(i, 2)));
+    auto vidx0 = faces(i, 0);
+    auto vidx1 = faces(i, 1);
+    auto vidx2 = faces(i, 2);
+
+    auto v0 = Vector3d(verts.row(vidx0));
+    auto v1 = Vector3d(verts.row(vidx1));
+    auto v2 = Vector3d(verts.row(vidx2));
 
     auto v0v1 = v1 - v0;
     auto v0v2 = v2 - v0;
     auto n = v0v1.cross(v0v2);
-    n.normalize();
+    double area = n.norm();
 
+    omp_set_lock(&writelock);
+    vertex_norms.row(vidx0) += n;
+    vertex_norms.row(vidx1) += n;
+    vertex_norms.row(vidx2) += n;
+
+    area_sum[vidx0] += area;
+    area_sum[vidx1] += area;
+    area_sum[vidx2] += area;
+    omp_unset_lock(&writelock);
+
+    n.normalize();
     norms.row(i) = n;
   }
+  omp_destroy_lock(&writelock);
+
+#pragma omp parallel for
+  for(int i=0;i<vertex_norms.rows();++i) {
+    vertex_norms.row(i) /= area_sum[i];
+  }
+
   cout << "Normals computed." << endl;
 }
 
 void BasicMesh::UpdateVertices(const VectorXd &vertices) {
   const int num_vertices = NumVertices();
 #pragma omp parallel for
-  for(int i=0, offset=0;i<num_vertices;++i,offset+=3) {
+  for(int i=0;i<num_vertices;++i) {
+    const int offset = i * 3;
     verts(i, 0) = vertices(offset+0);
     verts(i, 1) = vertices(offset+1);
     verts(i, 2) = vertices(offset+2);

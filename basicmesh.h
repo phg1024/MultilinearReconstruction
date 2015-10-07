@@ -8,6 +8,7 @@
 #define EIGEN_USE_MKL_ALL
 
 #include <eigen3/Eigen/Dense>
+#include "common.h"
 
 using namespace std;
 using namespace Eigen;
@@ -27,6 +28,9 @@ public:
   Vector3d normal(int i) const {
     return norms.row(i);
   }
+  Vector3d vertex_normal(int i) const {
+    return vertex_norms.row(i);
+  }
 
   int NumVertices() const { return static_cast<int>(verts.rows()); }
   int NumFaces() const { return static_cast<int>(faces.rows()); }
@@ -35,11 +39,16 @@ public:
   void ComputeNormals();
   void UpdateVertices(const VectorXd& vertices);
 
+  vector<int> GetNeighbors() const;
+
 private:
+  unordered_map<int, int> vert_face_map;
+
   MatrixX3d verts;
   MatrixX3i faces;
-  // Per-vertex normal vector
+  // Per-face normal vector
   MatrixX3d norms;
+  MatrixX3d vertex_norms;
 };
 
 #endif // BASICMESH_H

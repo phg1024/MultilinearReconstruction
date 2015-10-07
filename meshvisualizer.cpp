@@ -5,8 +5,9 @@
 
 MeshVisualizer::MeshVisualizer(const string &title, const BasicMesh &mesh)
   : QGLWidget(QGLFormat(QGL::SampleBuffers | QGL::AlphaChannel | QGL::DepthBuffer)),
-    mesh(mesh), image_tex(-1), face_alpha(0.5),
-    draw_faces(true), draw_edges(false)
+    mesh(mesh), image_tex(-1),
+    rot_x(0.0), rot_y(0.0), face_alpha(0.5),
+    draw_faces(true), draw_edges(false), draw_points(false)
 {
   setWindowTitle(title.c_str());
 }
@@ -84,7 +85,7 @@ void MeshVisualizer::paintGL() {
     glm::dmat4 Mproj = glm::perspective(45.0,
                                         static_cast<double>(width()) /
                                         static_cast<double>(height()),
-                                        1.0, 10.0);
+                                        1.0, 100.0);
 
     glLoadMatrixd(&Mproj[0][0]);
     glViewport(0, 0, width(), height());
@@ -93,12 +94,14 @@ void MeshVisualizer::paintGL() {
                                          mesh_rotation[1],
                                          mesh_rotation[2]);
 
+    glm::dmat4 Rmat_interaction = glm::eulerAngleXY(rot_x, rot_y);
+
     glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
                                      glm::dvec3(mesh_translation[0],
                                                 mesh_translation[1],
                                                 mesh_translation[2]));
 
-    glm::dmat4 MV = Tmat * Rmat;
+    glm::dmat4 MV = Tmat * Rmat_interaction * Rmat;
     glMatrixMode(GL_MODELVIEW);
     glLoadMatrixd(&MV[0][0]);
 
@@ -124,10 +127,12 @@ void MeshVisualizer::paintGL() {
         auto v0 = mesh.vertex(face_i[0]);
         auto v1 = mesh.vertex(face_i[1]);
         auto v2 = mesh.vertex(face_i[2]);
-        auto n = mesh.normal(i);
-        glNormal3dv(n.data());glVertex3dv(v0.data());
-        glNormal3dv(n.data());glVertex3dv(v1.data());
-        glNormal3dv(n.data());glVertex3dv(v2.data());
+        auto n0 = mesh.vertex_normal(face_i[0]);
+        auto n1 = mesh.vertex_normal(face_i[1]);
+        auto n2 = mesh.vertex_normal(face_i[2]);
+        glNormal3dv(n0.data());glVertex3dv(v0.data());
+        glNormal3dv(n1.data());glVertex3dv(v1.data());
+        glNormal3dv(n2.data());glVertex3dv(v2.data());
       }
       glEnd();
       glDisable(GL_CULL_FACE);
@@ -151,7 +156,8 @@ void MeshVisualizer::paintGL() {
     }
 
     // Draw landmarks
-    {
+    if (draw_points) {
+      cout << "landmarks:" << endl;
       glColor3f(.75, .25, .25);
       GLfloat mat_diffuse[] = {0.875, 0.375, 0.375, 1.0};
       GLfloat mat_specular[] = {0.875, 0.875, 0.875, 1.0};
@@ -164,8 +170,35 @@ void MeshVisualizer::paintGL() {
         const double delta_z = 1e-2;
 #if 1
         glPushMatrix();
+        cout << landmark << ": " << v.transpose() << endl;
         glTranslated(v[0], v[1], v[2] + delta_z);
-        glutSolidSphere(0.015, 32, 32);
+        glutSolidSphere(0.02, 32, 32);
+        glPopMatrix();
+#else
+        glVertex3d(v[0], v[1], v[2] + delta_z);
+#endif
+      }
+      glEnd();
+    }
+
+    // Draw updated landmarks
+    if( draw_points ) {
+      cout << "updated landmarks:" << endl;
+      glColor3f(.25, .25, .75);
+      GLfloat mat_diffuse[] = {0.375, 0.375, 0.875, 1.0};
+      GLfloat mat_specular[] = {0.875, 0.875, 0.875, 1.0};
+      glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
+      glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, mat_specular);
+      glPointSize(3.0);
+      glBegin(GL_POINTS);
+      for (auto &landmark : updated_landmarks) {
+        auto v = mesh.vertex(landmark);
+        const double delta_z = 1e-2;
+#if 1
+        glPushMatrix();
+        cout << landmark << ": " << v.transpose() << endl;
+        glTranslated(v[0], v[1], v[2] + delta_z);
+        glutSolidSphere(0.02, 32, 32);
         glPopMatrix();
 #else
         glVertex3d(v[0], v[1], v[2] + delta_z);
@@ -177,7 +210,6 @@ void MeshVisualizer::paintGL() {
     glPopMatrix();
 
     // Draw constraints
-    glDisable(GL_CULL_FACE);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     glOrtho(0, width(), 0, height(), 0.0001, 1000.0);
@@ -187,23 +219,28 @@ void MeshVisualizer::paintGL() {
     glLoadIdentity();
     gluLookAt(0.0, 0.0, 4.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
 
-    glColor3f(.25, .75, .25);
-    GLfloat mat_diffuse[] = {0.375, 0.875, 0.375, 1.0};
-    GLfloat mat_specular[] = {0.875, 0.875, 0.875, 1.0};
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, mat_specular);
-    glPointSize(3.0);
-    glBegin(GL_POINTS);
-    for(auto& constraint : constraints) {
+    if( draw_points ) {
+      glColor3f(.25, .75, .25);
+      GLfloat mat_diffuse[] = {0.375, 0.875, 0.375, 1.0};
+      GLfloat mat_specular[] = {0.875, 0.875, 0.875, 1.0};
+      glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
+      glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, mat_specular);
+      glPointSize(3.0);
+      glBegin(GL_POINTS);
+      for (int i = 0; i < constraints.size(); ++i) {
 #if 1
-      glMatrixMode(GL_MODELVIEW);
-      glPushMatrix();
-      glTranslated(constraint.data.x, constraint.data.y, 2.0);
-      glutSolidSphere(2.5, 32, 32);
-      glPopMatrix();
+        auto &constraint = constraints[i];
+        glMatrixMode(GL_MODELVIEW);
+        glPushMatrix();
+        cout << i << ": " << constraint.data.x << ", " << constraint.data.y <<
+        endl;
+        glTranslated(constraint.data.x, constraint.data.y, 2.0);
+        glutSolidSphere(3, 32, 32);
+        glPopMatrix();
 #else
-      glVertex3d(constraint.data.x, constraint.data.y, 3.0);
+        glVertex3d(constraint.data.x, constraint.data.y, 3.0);
 #endif
+      }
     }
     glEnd();
 
@@ -321,5 +358,32 @@ void MeshVisualizer::keyPressEvent(QKeyEvent *event) {
       event->accept();
       break;
     }
+    case Qt::Key_Left:
+    case Qt::Key_Right: {
+      double delta = 0.05 * (event->key()==Qt::Key_Left?-1.0:1.0);
+      rot_y += delta;
+      repaint();
+      event->accept();
+      break;
+    }
+    case Qt::Key_Up:
+    case Qt::Key_Down: {
+      double delta = 0.05 * (event->key()==Qt::Key_Down?-1.0:1.0);
+      rot_x += delta;
+      repaint();
+      event->accept();
+      break;
+    }
+    case Qt::Key_P: {
+      draw_points = !draw_points;
+      repaint();
+      event->accept();
+      break;
+    }
   }
+}
+
+void MeshVisualizer::BindUpdatedLandmarks(
+  const vector<int> &updated_landmarks_in) {
+  updated_landmarks = updated_landmarks_in;
 }

@@ -20,6 +20,9 @@ else()
     message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
 endif()
 
+# OpenMP
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
+
 # OpenGL
 find_package(OpenGL REQUIRED)
 find_package(GLUT REQUIRED)
@@ -36,6 +39,8 @@ endif()
 include_directories(/usr/include/eigen3)
 
 # MKL
+set(MKL_INCLUDE_DIRS "/home/phg/SDKs/intel/composer_xe/include")
+message([] ${MKL_INCLUDE_DIRS} )
 include_directories(${MKL_INCLUDE_DIRS})
 set(MKLROOT "/home/phg/SDKs/intel/composer_xe_2015/mkl")
 set(MKLLIBS_DIRS "${MKLROOT}/lib/intel64/")
