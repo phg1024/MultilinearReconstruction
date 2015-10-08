@@ -100,13 +100,11 @@ int main(int argc, char *argv[])
                    "/home/phg/Data/Multilinear/blendshape_u_1_aug.tensor");
   QImage img(image_filename.c_str());
   cout << "image size: " << img.width() << "x" << img.height() << endl;
-  double image_size = max(img.width(), img.height());
+  double image_size = img.height();
   double scale_ratio = 1.0;
   const double max_image_size = 640.0;
-  if( image_size > max_image_size ) {
-    scale_ratio = max_image_size / image_size;
-    img = img.scaled( img.width() * scale_ratio, img.height() * scale_ratio);
-  }
+  scale_ratio = max_image_size / image_size;
+  img = img.scaled(img.width() * scale_ratio, img.height() * scale_ratio);
   recon.SetImageSize(img.width(), img.height());
   auto landmarks = LoadIndices("/home/phg/Data/Multilinear/landmarks_73.txt");
   recon.SetIndices(landmarks);

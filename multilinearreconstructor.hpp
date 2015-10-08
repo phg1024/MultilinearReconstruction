@@ -164,8 +164,10 @@ public:
   }
 
 protected:
+  void OptimizeForPosition();
   void OptimizeForPose(int max_iterations);
   void OptimizeForExpression(int iteration);
+  void OptimizeForExpression_FACS(int iteration);
   void OptimizeForIdentity(int iteration);
   void UpdateContourIndices();
 
@@ -212,11 +214,11 @@ bool SingleImageReconstructor<Constraint>::Reconstruct()
   // Make a neutral face
   params_model.Wexp_FACS.resize(ModelParameters::nFACSDim);
   params_model.Wexp_FACS(0) = 1.0;
-  for(int i=1;i<ModelParameters::nFACSDim;++i) params_model.Wexp_FACS(i) = 1e-6;
+  for(int i=1;i<ModelParameters::nFACSDim;++i) params_model.Wexp_FACS(i) = 0.0;
   params_model.Wexp = params_model.Wexp_FACS.transpose() * prior.Uexp;
 
   // Use average identity
-  params_model.Wid = prior.Wid_avg;
+  params_model.Wid = prior.Uid.row(0);
 
   // No rotation and translation
   params_model.R = Vector3d(0, 0, 0);
@@ -231,30 +233,42 @@ bool SingleImageReconstructor<Constraint>::Reconstruct()
   // Assign lower weights to contour points
   const int num_contour_points = 15;
   for(int i=0;i<num_contour_points;++i) {
-    params_recon.cons[i].weight = 0.9;
+    params_recon.cons[i].weight = 1.0;
   }
 
   // Reconstruction begins
-  const int kMaxIterations = 8;
-  prior.weight_Wid = 10.0;
-  prior.weight_Wexp = 0.1;
+  const int kMaxIterations = 4;
+  const double init_weights = 1.0;
+  const double weights_step = init_weights / static_cast<double>(kMaxIterations);
+  prior.weight_Wid = init_weights;
+  prior.weight_Wexp = init_weights;
   int iters = 0;
+
+  // Before entering the main loop, estimate the translation first
+  OptimizeForPosition();
+
   while( iters++ < kMaxIterations ) {
-    OptimizeForPose(30);
-    OptimizeForExpression(iters);
+    for (int pose_opt_iter = 0; pose_opt_iter < 2; ++pose_opt_iter) {
+      OptimizeForPose(2);
+      model.ApplyWeights(params_model.Wid, params_model.Wexp);
+      mesh.UpdateVertices(model.GetTM());
+      mesh.ComputeNormals();
+      UpdateContourIndices();
+    }
+    OptimizeForExpression(2);
 
-    OptimizeForPose(30);
-    OptimizeForIdentity(iters);
-
-    OptimizeForPose(30);
-    model.ApplyWeights(params_model.Wid, params_model.Wexp);
-    mesh.UpdateVertices(model.GetTM());
-    mesh.ComputeNormals();
-    UpdateContourIndices();
+    for (int pose_opt_iter = 0; pose_opt_iter < 2; ++pose_opt_iter) {
+      OptimizeForPose(2);
+      model.ApplyWeights(params_model.Wid, params_model.Wexp);
+      mesh.UpdateVertices(model.GetTM());
+      mesh.ComputeNormals();
+      UpdateContourIndices();
+    }
+    OptimizeForIdentity(2);
 
     // Adjust weights
-    prior.weight_Wid -= 1.0;
-    prior.weight_Wexp -= 0.01;
+    prior.weight_Wid -= weights_step;
+    prior.weight_Wexp -= weights_step;
     for(int i=0;i<num_contour_points;++i) {
       params_recon.cons[i].weight = sqrt(params_recon.cons[i].weight);
     }
@@ -267,6 +281,34 @@ bool SingleImageReconstructor<Constraint>::Reconstruct()
 }
 
 template <typename Constraint>
+void SingleImageReconstructor<Constraint>::OptimizeForPosition() {
+  ceres::Problem problem;
+  vector<double> params{params_model.T[0], params_model.T[1], params_model.T[2]};
+
+  for(int i=0;i<indices.size();++i) {
+    auto model_i = model.project(vector<int>(1, indices[i]));
+    model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+    ceres::CostFunction *cost_function =
+      new ceres::NumericDiffCostFunction<PositionCostFunction, ceres::CENTRAL, 1, 3>(
+        new PositionCostFunction(model_i,
+                             params_recon.cons[i],
+                             params_cam));
+    problem.AddResidualBlock(cost_function, NULL, params.data());
+  }
+
+  ceres::Solver::Options options;
+  options.max_num_iterations = 30;
+  options.minimizer_progress_to_stdout = true;
+  ceres::Solver::Summary summary;
+  Solve(options, &problem, &summary);
+
+  cout << summary.BriefReport() << endl;
+  Vector3d newT(params[0], params[1], params[2]);
+  cout << "T: " << params_model.T.transpose() << " -> " << newT.transpose() << endl;
+  params_model.T = newT;
+}
+
+template <typename Constraint>
 void SingleImageReconstructor<Constraint>::OptimizeForPose(int max_iters) {
   ceres::Problem problem;
   vector<double> params{params_model.R[0], params_model.R[1], params_model.R[2],
@@ -276,7 +318,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose(int max_iters) {
     auto model_i = model.project(vector<int>(1, indices[i]));
     model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
     ceres::CostFunction *cost_function =
-      new ceres::NumericDiffCostFunction<PoseCostFunction, ceres::CENTRAL, 2, 6>(
+      new ceres::NumericDiffCostFunction<PoseCostFunction, ceres::CENTRAL, 1, 6>(
         new PoseCostFunction(model_i,
                              params_recon.cons[i],
                              params_cam));
@@ -285,8 +327,8 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose(int max_iters) {
 
   ceres::Solver::Options options;
   options.max_num_iterations = max_iters;
-  //options.minimizer_type = ceres::LINE_SEARCH;
-  //options.line_search_direction_type = ceres::STEEPEST_DESCENT;
+  options.minimizer_type = ceres::LINE_SEARCH;
+  options.line_search_direction_type = ceres::LBFGS;
   options.minimizer_progress_to_stdout = true;
   ceres::Solver::Summary summary;
   Solve(options, &problem, &summary);
@@ -308,7 +350,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression(int iteration) 
                                    glm::dvec3(params_model.T[0], params_model.T[1], params_model.T[2]));
   glm::dmat4 Mview = Tmat * Rmat;
 
-  VectorXd params = params_model.Wexp_FACS;
+  VectorXd params = params_model.Wexp;
 
   double puple_distance = glm::distance(0.5 * (params_recon.cons[28].data + params_recon.cons[30].data),
                                         0.5 * (params_recon.cons[32].data + params_recon.cons[34].data));
@@ -326,10 +368,71 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression(int iteration) 
                                    params_recon.cons[i],
                                    params.size(),
                                    Mview,
+                                   params_cam));
+    cost_function->AddParameterBlock(params.size());
+    cost_function->SetNumResiduals(1);
+    problem.AddResidualBlock(cost_function, NULL, params.data());
+  }
+
+  ceres::DynamicNumericDiffCostFunction<PriorCostFunction> *prior_cost_function =
+    new ceres::DynamicNumericDiffCostFunction<PriorCostFunction>(
+      new PriorCostFunction(prior.Wexp_avg, prior.inv_sigma_Wexp, prior.weight_Wexp * prior_scale));
+  prior_cost_function->AddParameterBlock(params.size());
+  prior_cost_function->SetNumResiduals(1);
+  problem.AddResidualBlock(prior_cost_function, NULL, params.data());
+
+  // Solve it
+  ceres::Solver::Options options;
+  options.max_num_iterations = iteration * 3;
+  options.minimizer_type = ceres::LINE_SEARCH;
+  options.line_search_direction_type = ceres::LBFGS;
+  options.minimizer_progress_to_stdout = true;
+  ceres::Solver::Summary summary;
+  Solve(options, &problem, &summary);
+  cout << summary.BriefReport() << endl;
+
+  options.max_num_iterations = iteration * 5;
+  options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
+  Solve(options, &problem, &summary);
+  cout << summary.BriefReport() << endl;
+
+  // Update the model parameters
+  cout << params_model.Wexp.transpose() << endl
+       << " -> " << endl
+       << params.transpose() << endl;
+  params_model.Wexp = params;
+}
+
+template <typename Constraint>
+void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(int iteration) {
+  // Create view matrix
+  auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1], params_model.R[2]);
+  glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
+                                   glm::dvec3(params_model.T[0], params_model.T[1], params_model.T[2]));
+  glm::dmat4 Mview = Tmat * Rmat;
+
+  VectorXd params = params_model.Wexp_FACS;
+
+  double puple_distance = glm::distance(0.5 * (params_recon.cons[28].data + params_recon.cons[30].data),
+                                        0.5 * (params_recon.cons[32].data + params_recon.cons[34].data));
+  double prior_scale = puple_distance / 100.0;
+
+  // Define the optimization problem
+  ceres::Problem problem;
+
+  for(int i=0;i<indices.size();++i) {
+    auto model_i = model.project(vector<int>(1, indices[i]));
+    model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+    ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction_FACS> *cost_function =
+      new ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction_FACS>(
+        new ExpressionCostFunction_FACS(model_i,
+                                   params_recon.cons[i],
+                                   params.size(),
+                                   Mview,
                                    prior.Uexp,
                                    params_cam));
     cost_function->AddParameterBlock(params.size());
-    cost_function->SetNumResiduals(2);
+    cost_function->SetNumResiduals(1);
     problem.AddResidualBlock(cost_function, NULL, params.data());
   }
 
@@ -340,16 +443,16 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression(int iteration) 
   prior_cost_function->SetNumResiduals(1);
   problem.AddResidualBlock(prior_cost_function, NULL, params.data());
 
-  for(int i=0;i<params.size();++i) {
-    problem.SetParameterLowerBound(params.data(), i, -1.0);
-    problem.SetParameterUpperBound(params.data(), i, 1.0);
-  }
+//  for(int i=0;i<params.size();++i) {
+//    problem.SetParameterLowerBound(params.data(), i, -1.0);
+//    problem.SetParameterUpperBound(params.data(), i, 1.0);
+//  }
 
   // Solve it
   ceres::Solver::Options options;
-  options.max_num_iterations = iteration * 5;
-  //options.minimizer_type = ceres::LINE_SEARCH;
-  //options.line_search_direction_type = ceres::STEEPEST_DESCENT;
+  options.max_num_iterations = iteration * 10;
+  options.minimizer_type = ceres::LINE_SEARCH;
+  options.line_search_direction_type = ceres::STEEPEST_DESCENT;
   options.minimizer_progress_to_stdout = true;
   ceres::Solver::Summary summary;
   Solve(options, &problem, &summary);
@@ -358,8 +461,8 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression(int iteration) 
 
   // Update the model parameters
   cout << params_model.Wexp_FACS.transpose() << endl
-       << " -> " << endl
-       << params.transpose() << endl;
+  << " -> " << endl
+  << params.transpose() << endl;
   params_model.Wexp_FACS = params;
   params_model.Wexp = params_model.Wexp_FACS.transpose() * prior.Uexp;
 }
@@ -392,7 +495,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
                                  Mview,
                                  params_cam));
     cost_function->AddParameterBlock(params.size());
-    cost_function->SetNumResiduals(2);
+    cost_function->SetNumResiduals(1);
     problem.AddResidualBlock(cost_function, NULL, params.data());
   }
 
@@ -405,13 +508,17 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
 
   // Solve it
   ceres::Solver::Options options;
-  options.max_num_iterations = iteration * 5;
-  //options.minimizer_type = ceres::LINE_SEARCH;
-  //options.line_search_direction_type = ceres::STEEPEST_DESCENT;
+  options.max_num_iterations = iteration * 3;
+  options.minimizer_type = ceres::LINE_SEARCH;
+  options.line_search_direction_type = ceres::LBFGS;
   options.minimizer_progress_to_stdout = true;
   ceres::Solver::Summary summary;
   Solve(options, &problem, &summary);
+  cout << summary.BriefReport() << endl;
 
+  options.max_num_iterations = iteration * 5;
+  options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
+  Solve(options, &problem, &summary);
   cout << summary.BriefReport() << endl;
 
   // Update the model parameters
@@ -429,7 +536,14 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices() {
                                    glm::dvec3(params_model.T[0], params_model.T[1], params_model.T[2]));
   glm::dmat4 Mview = Tmat * Rmat;
 
-  vector<pair<int, glm::dvec4>> candidates;
+  //0:34
+  //35:39
+  //40:74
+
+  vector<pair<int, glm::dvec4>> candidates_left;
+  vector<pair<int, glm::dvec4>> candidates_center;
+  vector<pair<int, glm::dvec4>> candidates_right;
+
   for(int j=0;j<contour_indices.size();++j) {
     vector<double> dot_products(contour_indices[j].size(), 0.0);
     vector<glm::dvec4> contour_vertices(contour_indices[j].size());
@@ -448,63 +562,104 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices() {
 
       // Compute the normal for this vertex
       auto n0 = mesh.vertex_normal(contour_indices[j][i]);
-      glm::dvec4 n = Rmat * glm::dvec4(n0[0], n0[1], n0[2], 1.0);
+      // Normal matrix is transpose(inverse(modelView))
+      glm::dvec4 n = glm::transpose(glm::inverse(Mview)) * glm::dvec4(n0[0], n0[1], n0[2], 1.0);
 
       // Compute the dot product of normal and view direction
-      dot_products[i] = fabs(glm::dot(glm::dvec3(n.x, n.y, n.z),
-                                      glm::dvec3(0, 0, 1.0)));
+      dot_products[i] = glm::dot(glm::normalize(glm::dvec3(n.x, n.y, n.z)),
+                                 glm::dvec3(0, 0, 0) - glm::dvec3(p.x, p.y, p.z));
+      // Force selection of visible points
+      dot_products[i] = fabs(dot_products[i]);
     }
 
     auto min_iter = std::min_element(dot_products.begin(), dot_products.end());
     int min_idx = min_iter - dot_products.begin();
     //cout << min_idx << endl;
-    candidates.push_back(make_pair(contour_indices[j][min_idx],
+
+    vector<pair<int, glm::dvec4>> *candidates;
+    if( j < 35 ) {
+      // left set
+      candidates = &candidates_left;
+    } else if ( j >= 40 ) {
+      // right set
+      candidates = &candidates_right;
+    } else {
+      // center set
+      candidates = &candidates_center;
+    }
+
+    candidates->push_back(make_pair(contour_indices[j][min_idx],
                                    contour_vertices[min_idx]));
 
+#if 1
     if ( min_idx > 0 ) {
       Vector3d v_ji1 = mesh.vertex(contour_indices[j][min_idx-1]);
       glm::dvec4 p1(v_ji1[0], v_ji1[1], v_ji1[2], 1.0);
-      candidates.push_back(make_pair(contour_indices[j][min_idx-1],
+      candidates->push_back(make_pair(contour_indices[j][min_idx-1],
                                      p1));
     }
     if ( min_idx < contour_indices[j].size()-1 ) {
       Vector3d v_ji1 = mesh.vertex(contour_indices[j][min_idx+1]);
       glm::dvec4 p1(v_ji1[0], v_ji1[1], v_ji1[2], 1.0);
-      candidates.push_back(make_pair(contour_indices[j][min_idx+1],
+      candidates->push_back(make_pair(contour_indices[j][min_idx+1],
                                      p1));
     }
+#endif
   }
 
   // Project all points to image plane and choose the closest ones as new
   // contour points.
-  vector<glm::dvec3> projected_points(candidates.size());
-  for(int i=0;i<candidates.size();++i) {
-    projected_points[i] = ProjectPoint(
-      glm::dvec3(candidates[i].second.x,
-                 candidates[i].second.y,
-                 candidates[i].second.z),
-      Mview, params_cam);
-    //cout << projected_points[i].x << ", " << projected_points[i].y << endl;
-  }
+  vector<glm::dvec3> projected_points_left(candidates_left.size());
+  vector<glm::dvec3> projected_points_center(candidates_center.size());
+  vector<glm::dvec3> projected_points_right(candidates_right.size());
+
+  auto project_candidate_points = [=](
+    const vector<pair<int, glm::dvec4>> &candidates,
+    vector<glm::dvec3> &projected_points) {
+    for (int i = 0; i < candidates.size(); ++i) {
+      projected_points[i] = ProjectPoint(
+        glm::dvec3(candidates[i].second.x,
+                   candidates[i].second.y,
+                   candidates[i].second.z),
+        Mview, params_cam);
+      //cout << projected_points[i].x << ", " << projected_points[i].y << endl;
+    }
+  };
+  project_candidate_points(candidates_left, projected_points_left);
+  project_candidate_points(candidates_center, projected_points_center);
+  project_candidate_points(candidates_right, projected_points_right);
 
   // Find closest match for each contour point
   const int num_contour_points = 15;
   for(int i=0;i<num_contour_points;++i) {
-    vector<double> dists(candidates.size());
-    for(int j=0;j<candidates.size();++j) {
-      double dx = projected_points[j].x - params_recon.cons[i].data.x;
-      double dy = projected_points[j].y - params_recon.cons[i].data.y;
+    vector<pair<int, glm::dvec4>>* candidates;
+    vector<glm::dvec3>* projected_points;
+    if( i < 7 ) {
+      candidates = &candidates_left;
+      projected_points = &projected_points_left;
+    } else if ( i > 8 ) {
+      candidates = &candidates_right;
+      projected_points = &projected_points_right;
+    } else {
+      candidates = &candidates_center;
+      projected_points = &projected_points_center;
+    }
+
+    vector<double> dists(candidates->size());
+    for(int j=0;j<candidates->size();++j) {
+      double dx = (*projected_points)[j].x - params_recon.cons[i].data.x;
+      double dy = (*projected_points)[j].y - params_recon.cons[i].data.y;
       dists[j] = dx * dx + dy * dy;
     }
     auto min_iter = std::min_element(dists.begin(), dists.end());
-    double min_acceptable_dist = 100.0;
+    double min_acceptable_dist = 10.0;
     if( sqrt(*min_iter) > min_acceptable_dist ) {
       //cout << sqrt(*min_iter) << endl;
       continue;
     } else {
       //cout << i << ": " << indices[i] << " -> " << candidates[min_iter - dists.begin()].first << endl;
-      indices[i] = candidates[min_iter - dists.begin()].first;
-      params_recon.cons[i].vidx = candidates[min_iter - dists.begin()].first;
+      indices[i] = (*candidates)[min_iter - dists.begin()].first;
+      params_recon.cons[i].vidx = (*candidates)[min_iter - dists.begin()].first;
     }
   }
 }

@@ -88,6 +88,7 @@ void MeshVisualizer::paintGL() {
                                         1.0, 100.0);
 
     glLoadMatrixd(&Mproj[0][0]);
+
     glViewport(0, 0, width(), height());
 
     glm::dmat4 Rmat = glm::eulerAngleYXZ(mesh_rotation[0],
@@ -104,6 +105,10 @@ void MeshVisualizer::paintGL() {
     glm::dmat4 MV = Tmat * Rmat_interaction * Rmat;
     glMatrixMode(GL_MODELVIEW);
     glLoadMatrixd(&MV[0][0]);
+
+    // compensate for scaling in screen space
+    double xratio = static_cast<double>(width()) / static_cast<double>(image.width());
+    double yratio = static_cast<double>(height()) / static_cast<double>(image.height());
 
     glPushMatrix();
 
@@ -164,21 +169,15 @@ void MeshVisualizer::paintGL() {
       glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
       glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, mat_specular);
       glPointSize(3.0);
-      glBegin(GL_POINTS);
       for (auto &landmark : landmarks) {
         auto v = mesh.vertex(landmark);
         const double delta_z = 1e-2;
-#if 1
         glPushMatrix();
         cout << landmark << ": " << v.transpose() << endl;
         glTranslated(v[0], v[1], v[2] + delta_z);
-        glutSolidSphere(0.02, 32, 32);
+        glutSolidSphere(0.01, 32, 32);
         glPopMatrix();
-#else
-        glVertex3d(v[0], v[1], v[2] + delta_z);
-#endif
       }
-      glEnd();
     }
 
     // Draw updated landmarks
@@ -190,21 +189,15 @@ void MeshVisualizer::paintGL() {
       glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
       glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, mat_specular);
       glPointSize(3.0);
-      glBegin(GL_POINTS);
       for (auto &landmark : updated_landmarks) {
         auto v = mesh.vertex(landmark);
         const double delta_z = 1e-2;
-#if 1
         glPushMatrix();
         cout << landmark << ": " << v.transpose() << endl;
         glTranslated(v[0], v[1], v[2] + delta_z);
-        glutSolidSphere(0.02, 32, 32);
+        glutSolidSphere(0.01, 32, 32);
         glPopMatrix();
-#else
-        glVertex3d(v[0], v[1], v[2] + delta_z);
-#endif
       }
-      glEnd();
     }
 
     glPopMatrix();
@@ -226,23 +219,26 @@ void MeshVisualizer::paintGL() {
       glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
       glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, mat_specular);
       glPointSize(3.0);
-      glBegin(GL_POINTS);
       for (int i = 0; i < constraints.size(); ++i) {
-#if 1
         auto &constraint = constraints[i];
-        glMatrixMode(GL_MODELVIEW);
+        double xi = constraint.data.x;
+        double yi = constraint.data.y;
+
+        // transform xi and yi if necessary
+        double xratio = static_cast<double>(width()) / static_cast<double>(image.width());
+        double yratio = static_cast<double>(height()) / static_cast<double>(image.height());
+
+        xi *= xratio;
+        yi *= yratio;
+
         glPushMatrix();
         cout << i << ": " << constraint.data.x << ", " << constraint.data.y <<
         endl;
-        glTranslated(constraint.data.x, constraint.data.y, 2.0);
+        glTranslated(xi, yi, 2.0);
         glutSolidSphere(3, 32, 32);
         glPopMatrix();
-#else
-        glVertex3d(constraint.data.x, constraint.data.y, 3.0);
-#endif
       }
     }
-    glEnd();
 
     DisableLighting();
   } else {
