@@ -172,12 +172,9 @@ struct ExpressionCostFunction_FACS {
     // Project the point to image plane
     auto tm = model.GetTM();
     glm::dvec3 p(tm[0], tm[1], tm[2]);
-    //cout << p.x << ", " << p.y << ", " << p.z << endl;
     glm::dvec3 q = ProjectPoint(p, Mview, cam_params);
     // Compute residual
-    double dx = q.x - constraint.data.x;
-    double dy = q.y - constraint.data.y;
-    residual[0] = sqrt((dx * dx + dy * dy) * constraint.weight);
+    residual[0] = l2_norm(glm::dvec2(q.x, q.y), constraint.data) * constraint.weight;
     return true;
   }
 
@@ -208,18 +205,18 @@ struct PriorCostFunction {
   double weight;
 };
 
-struct ExpressionPriorCostFunction {
-  ExpressionPriorCostFunction(const VectorXd& prior_vec, const MatrixXd& inv_cov_mat,
-                    const MatrixXd& Uexp, double weight)
+struct ExpressionRegularizationCostFunction {
+  ExpressionRegularizationCostFunction(const VectorXd& prior_vec, const MatrixXd& inv_cov_mat, const MatrixXd& Uexp, double weight)
     : prior_vec(prior_vec), inv_cov_mat(inv_cov_mat), Uexp(Uexp), weight(weight) {}
 
   bool operator()(const double* const* w, double* residual) const {
     const int params_length = 47;
-    VectorXd wexp_vec = Map<const VectorXd>(w[0], 47).eval();
-    VectorXd diff = (wexp_vec.transpose() * Uexp - prior_vec).eval();
+
+    VectorXd diff = (Uexp.transpose() * Map<const VectorXd>(w[0], params_length) - prior_vec).eval();
 
     // Simply Mahalanobis distance between w and prior_vec
     residual[0] = sqrt(fabs(weight * diff.transpose() * (inv_cov_mat * diff)));
+
     return true;
   }
 

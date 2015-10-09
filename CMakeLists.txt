@@ -86,7 +86,7 @@ add_library(tensor tensor.hpp)
 target_link_libraries(tensor ${MKLLIBS})
 
 # Multilinear reconstruction module
-add_executable(MultilinearReconstruction main.cpp mainwindow.cpp multilinearreconstructor.hpp utils.hpp)
+add_executable(MultilinearReconstruction main.cpp mainwindow.cpp singleimagereconstructor.hpp utils.hpp)
 target_link_libraries(MultilinearReconstruction
                       meshvisualizer
                       multilinearmodel

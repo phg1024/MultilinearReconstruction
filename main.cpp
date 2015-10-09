@@ -6,7 +6,7 @@
 #include "boost/algorithm/string/classification.hpp"
 
 #include "meshvisualizer.h"
-#include "multilinearreconstructor.hpp"
+#include "singleimagereconstructor.hpp"
 #include "glog/logging.h"
 
 vector<int> LoadIndices(const string& filename) {
