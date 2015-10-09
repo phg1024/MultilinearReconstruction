@@ -29,9 +29,10 @@ public:
   SingleImageReconstructor(){}
   void LoadModel(const string &filename);
   void LoadPriors(const string &filename_id, const string &filename_exp);
+  void SetContourIndices(const vector<vector<int>> &contour_points) { contour_indices = contour_points; }
+
   void SetIndices(const vector<int> &indices_vec) { indices = indices_vec; }
   void SetConstraints(const vector<Constraint> &cons) { params_recon.cons = cons; }
-  void SetContourIndices(const vector<vector<int>> &contour_points) { contour_indices = contour_points; }
   void SetImageSize(int w, int h) {
     params_recon.imageWidth = w;
     params_recon.imageHeight = h;
@@ -70,10 +71,11 @@ protected:
 
 private:
   MultilinearModel model, model_projected;
-  vector<int> indices;
-  vector<vector<int>> contour_indices;
   MultilinearModelPrior prior;
-  BasicMesh mesh;   // for mesh topology
+  vector<vector<int>> contour_indices;
+
+  vector<int> indices;
+  BasicMesh mesh;
 
   CameraParameters params_cam;
   ModelParameters params_model;

@@ -1,4 +1,3 @@
-#include "mainwindow.h"
 #include <QApplication>
 #include <GL/freeglut_std.h>
 
@@ -88,7 +87,7 @@ int main(int argc, char *argv[])
   google::InitGoogleLogging(argv[0]);
 
   if( argc < 3 ) {
-    cout << "Usage: ./MultilinearReconstruction image_file pts_file" << endl;
+    cout << "Usage: ./SingleImageReconstruction image_file pts_file" << endl;
     return -1;
   }
   string image_filename = argv[1];

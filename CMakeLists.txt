@@ -85,9 +85,9 @@ target_link_libraries(meshvisualizer
 add_library(tensor tensor.hpp)
 target_link_libraries(tensor ${MKLLIBS})
 
-# Multilinear reconstruction module
-add_executable(MultilinearReconstruction main.cpp mainwindow.cpp singleimagereconstructor.hpp utils.hpp)
-target_link_libraries(MultilinearReconstruction
+# Single image reconstruction program
+add_executable(SingleImageReconstruction singleimagereconstruction.cpp singleimagereconstructor.hpp utils.hpp)
+target_link_libraries(SingleImageReconstruction
                       meshvisualizer
                       multilinearmodel
                       basicmesh
@@ -98,6 +98,20 @@ target_link_libraries(MultilinearReconstruction
 					  ${MKLLIBS}
 					  ${PhGLib}
                       ${CERES_LIBRARIES})
+
+# Multiple image reconstruction program
+add_executable(MultiImageReconstruction multiimagereconstruction.cpp multiimagereconstructor.h singleimagereconstructor.hpp utils.hpp multiimagereconstruction.cpp)
+target_link_libraries(MultiImageReconstruction
+        meshvisualizer
+        multilinearmodel
+        basicmesh
+        tensor
+        Qt5::Core
+        Qt5::Widgets
+        Qt5::OpenGL
+        ${MKLLIBS}
+        ${PhGLib}
+        ${CERES_LIBRARIES})
 
 # Multilinear model builder
 add_executable(MultilinearModelBuilder multilinearmodelbuilder.cpp)
