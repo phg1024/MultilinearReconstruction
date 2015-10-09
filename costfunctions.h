@@ -12,13 +12,24 @@
 #include <eigen3/Eigen/Dense>
 using namespace Eigen;
 
-glm::dvec3 ProjectPoint(const glm::dvec3& p, const glm::dmat4& Mview, const CameraParameters& cam_params) {
+inline glm::dvec3 ProjectPoint(const glm::dvec3& p, const glm::dmat4& Mview, const CameraParameters& cam_params) {
   glm::dmat4 Mproj = glm::perspective(45.0,
                                       (double)cam_params.image_size.x / (double)cam_params.image_size.y,
                                       1.0, 100.0);
   glm::ivec4 viewport(0, 0, cam_params.image_size.x, cam_params.image_size.y);
   return glm::project(p, Mview, Mproj, viewport);
 }
+
+template <typename VecType>
+double l1_norm(const VecType& u, const VecType& v) {
+  double d = glm::distance(u, v);
+  return sqrt(d);
+};
+
+template <typename VecType>
+double l2_norm(const VecType& u, const VecType& v) {
+  return glm::distance(u, v);
+};
 
 struct PoseCostFunction {
   PoseCostFunction(const MultilinearModel &model,
@@ -38,9 +49,7 @@ struct PoseCostFunction {
     /// @todo Create projection matrix using camera focal length
     glm::dvec3 q = ProjectPoint(p, Mview, cam_params);
 
-    double dx = q.x - constraint.data.x;
-    double dy = q.y - constraint.data.y;
-    residual[0] = sqrt(dx * dx + dy * dy) * constraint.weight;
+    residual[0] = l2_norm(glm::dvec2(q.x, q.y), constraint.data) * constraint.weight;
 
     return true;
   }
@@ -66,9 +75,7 @@ struct PositionCostFunction {
     /// @todo Create projection matrix using camera focal length
     glm::dvec3 q = ProjectPoint(p, Mview, cam_params);
 
-    double dx = q.x - constraint.data.x;
-    double dy = q.y - constraint.data.y;
-    residual[0] = sqrt(dx * dx + dy * dy) * constraint.weight;
+    residual[0] = l2_norm(glm::dvec2(q.x, q.y), constraint.data) * constraint.weight;
 
     return true;
   }
@@ -98,9 +105,7 @@ struct IdentityCostFunction {
                                  Mview,
                                  cam_params);
     // Compute residual
-    double dx = q.x - constraint.data.x;
-    double dy = q.y - constraint.data.y;
-    residual[0] = sqrt(dx * dx + dy * dy) * constraint.weight;
+    residual[0] = l1_norm(glm::dvec2(q.x, q.y), constraint.data) * constraint.weight;
 
     return true;
   }
@@ -133,10 +138,9 @@ struct ExpressionCostFunction {
     glm::dvec3 p(tm[0], tm[1], tm[2]);
     //cout << p.x << ", " << p.y << ", " << p.z << endl;
     glm::dvec3 q = ProjectPoint(p, Mview, cam_params);
+
     // Compute residual
-    double dx = q.x - constraint.data.x;
-    double dy = q.y - constraint.data.y;
-    residual[0] = sqrt(dx * dx + dy * dy) * constraint.weight;
+    residual[0] = l2_norm(glm::dvec2(q.x, q.y), constraint.data) * constraint.weight;
     return true;
   }
 
@@ -173,7 +177,7 @@ struct ExpressionCostFunction_FACS {
     // Compute residual
     double dx = q.x - constraint.data.x;
     double dy = q.y - constraint.data.y;
-    residual[0] = sqrt(dx * dx + dy * dy) * constraint.weight;
+    residual[0] = sqrt((dx * dx + dy * dy) * constraint.weight);
     return true;
   }
 

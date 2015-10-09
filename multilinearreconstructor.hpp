@@ -239,9 +239,10 @@ bool SingleImageReconstructor<Constraint>::Reconstruct()
   // Reconstruction begins
   const int kMaxIterations = 4;
   const double init_weights = 1.0;
-  const double weights_step = init_weights / static_cast<double>(kMaxIterations);
-  prior.weight_Wid = init_weights;
-  prior.weight_Wexp = init_weights;
+  prior.weight_Wid = 1.0;
+  const double d_wid = 0.25;
+  prior.weight_Wexp = 5.0;
+  const double d_wexp = 1.25;
   int iters = 0;
 
   // Before entering the main loop, estimate the translation first
@@ -267,8 +268,8 @@ bool SingleImageReconstructor<Constraint>::Reconstruct()
     OptimizeForIdentity(2);
 
     // Adjust weights
-    prior.weight_Wid -= weights_step;
-    prior.weight_Wexp -= weights_step;
+    prior.weight_Wid -= d_wid;
+    prior.weight_Wexp -= d_wexp;
     for(int i=0;i<num_contour_points;++i) {
       params_recon.cons[i].weight = sqrt(params_recon.cons[i].weight);
     }
@@ -568,7 +569,7 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices() {
       // Compute the dot product of normal and view direction
       dot_products[i] = glm::dot(glm::normalize(glm::dvec3(n.x, n.y, n.z)),
                                  glm::dvec3(0, 0, 0) - glm::dvec3(p.x, p.y, p.z));
-      // Force selection of visible points
+
       dot_products[i] = fabs(dot_products[i]);
     }
 
