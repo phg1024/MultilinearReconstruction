@@ -29,12 +29,22 @@ class MultiImageReconstructor {
 public:
   MultiImageReconstructor() {}
 
-  void LoadModel(const string& filename);
-  void LoadPrior(const string& filename_id, const string& filename_exp);
-  void SetContourIndices(const vector<vector<int>>& contour_points);
-  void LoadMesh(const string& filename);
+  void LoadModel(const string& filename) {
+    model = MultilinearModel(filename);
+  }
+  void LoadPrior(const string& filename_id, const string& filename_exp) {
+    prior.load(filename_id, filename_exp);
+  }
+  void SetContourIndices(const vector<vector<int>>& contour_indices_in) {
+    contour_indices = contour_indices_in;
+  }
+  void SetMesh(const BasicMesh& mesh) {
+    template_mesh = mesh;
+  }
+  void SetIndices(const vector<int>& indices) {
+    init_indices = indices;
+  }
 
-  void SetIndices(int imgidx, const vector<int>& indices_in);
   void SetConstraints(int imgidx, const vector<Constraint>& cons);
   void SetImageSize(int imgidx, glm::ivec2 imgsize);
 
@@ -64,6 +74,8 @@ private:
   MultilinearModel model;
   MultilinearModelPrior prior;
   vector<vector<int>> contour_indices;
+  vector<int> init_indices;
+  BasicMesh template_mesh;
 
   struct ParameterSet {
     vector<int> indices;

@@ -20,6 +20,11 @@ else()
     message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
 endif()
 
+# Boost
+find_package(Boost COMPONENTS filesystem timer program_options REQUIRED)
+include_directories(${Boost_INCLUDE_DIRS})
+link_libraries(${Boost_LIBRARIES} -lboost_filesystem -lboost_system)
+
 # OpenMP
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
 
@@ -86,7 +91,7 @@ add_library(tensor tensor.hpp)
 target_link_libraries(tensor ${MKLLIBS})
 
 # Single image reconstruction program
-add_executable(SingleImageReconstruction singleimagereconstruction.cpp singleimagereconstructor.hpp utils.hpp)
+add_executable(SingleImageReconstruction singleimagereconstruction.cpp singleimagereconstructor.hpp utils.hpp ioutilities.h)
 target_link_libraries(SingleImageReconstruction
                       meshvisualizer
                       multilinearmodel
@@ -100,7 +105,7 @@ target_link_libraries(SingleImageReconstruction
                       ${CERES_LIBRARIES})
 
 # Multiple image reconstruction program
-add_executable(MultiImageReconstruction multiimagereconstruction.cpp multiimagereconstructor.h singleimagereconstructor.hpp utils.hpp multiimagereconstruction.cpp)
+add_executable(MultiImageReconstruction multiimagereconstruction.cpp multiimagereconstructor.h singleimagereconstructor.hpp utils.hpp multiimagereconstruction.cpp ioutilities.h)
 target_link_libraries(MultiImageReconstruction
         meshvisualizer
         multilinearmodel
