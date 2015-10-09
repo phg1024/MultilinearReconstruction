@@ -45,8 +45,9 @@ public:
     init_indices = indices;
   }
 
-  void SetConstraints(int imgidx, const vector<Constraint>& cons);
-  void SetImageSize(int imgidx, glm::ivec2 imgsize);
+  void AddImagePointsPair(const pair<QImage, vector<Constraint>>& p) {
+    image_points_pairs.push_back(p);
+  }
 
   bool Reconstruct();
 
@@ -87,8 +88,32 @@ private:
     OptimizationParameters opt;
   };
 
+  // Input image points pairs
+  vector<pair<QImage, vector<Constraint>>> image_points_pairs;
+
   // A set of parameters for each image
   vector<ParameterSet> param_sets;
 };
+
+template <typename Constraint>
+bool MultiImageReconstructor<Constraint>::Reconstruct() {
+  // @todo Work on this function.
+
+  // Initialize the parameter sets
+  for(auto& params : param_sets) {
+    params.indices = init_indices;
+    params.mesh = template_mesh;
+
+    // camera parameters
+
+    // model parameters
+
+  }
+
+  // Main reconstruction loop
+  //  1. Use single image reconstructor to do per-image reconstruction first
+  //  2. Select a consistent set of images for joint reconstruction
+  //  3. Convergence test. If not converged, goto step 1.
+}
 
 #endif //MULTILINEARRECONSTRUCTION_MULTIIMAGERECONSTRUCTOR_H

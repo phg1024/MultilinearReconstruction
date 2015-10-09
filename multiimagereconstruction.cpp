@@ -7,6 +7,12 @@
 #include "singleimagereconstructor.hpp"
 #include "multiimagereconstructor.h"
 
+#include "boost/filesystem/operations.hpp"
+#include "boost/filesystem/path.hpp"
+
+namespace fs = boost::filesystem;
+
+
 int main(int argc, char *argv[]) {
   QApplication a(argc, argv);
   glutInit(&argc, argv);
@@ -41,6 +47,17 @@ int main(int argc, char *argv[]) {
   recon.SetIndices(landmarks);
 
   // Parse the setting file and load image related resources
+  fs::path settings_filepath(settings_filename);
+
   vector<pair<string, string>> image_points_filenames = ParseSettingsFile(settings_filename);
+  for(auto& p : image_points_filenames) {
+    fs::path image_filename = settings_filepath.parent_path() / fs::path(p.first);
+    fs::path pts_filename = settings_filepath.parent_path() / fs::path(p.second);
+    cout << image_filename << ", " << pts_filename << endl;
+
+    auto image_points_pair = LoadImageAndPoints(image_filename.string(), pts_filename.string());
+    recon.AddImagePointsPair(image_points_pair);
+  }
+
   return a.exec();
 }

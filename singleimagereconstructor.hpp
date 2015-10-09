@@ -98,6 +98,8 @@ void SingleImageReconstructor<Constraint>::LoadPriors(const string &filename_id,
 template <typename Constraint>
 bool SingleImageReconstructor<Constraint>::Reconstruct()
 {
+  // @todo Make the single image reconstructor work as a black box
+
   // Initialize parameters
   cout << "Reconstruction begins." << endl;
 
