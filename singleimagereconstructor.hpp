@@ -269,11 +269,17 @@ void SingleImageReconstructor<Constraint>::OptimizeForPosition() {
     for (int i = 0; i < indices.size(); ++i) {
       auto& model_i = model_projected[i];
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+#if 0
       ceres::CostFunction *cost_function =
         new ceres::NumericDiffCostFunction<PositionCostFunction, ceres::CENTRAL, 1, 3>(
           new PositionCostFunction(model_i,
                                    params_recon.cons[i],
                                    params_cam));
+#else
+      ceres::CostFunction *cost_function = new PositionCostFunction_analytic(model_i,
+                                                                        params_recon.cons[i],
+                                                                        params_cam);
+#endif
       problem.AddResidualBlock(cost_function, NULL, params.data());
     }
   }
@@ -310,12 +316,18 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose(int max_iters) {
     for (int i = 0; i < indices.size(); ++i) {
       auto& model_i = model_projected[i];
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+#if 0
       ceres::CostFunction *cost_function =
         new ceres::NumericDiffCostFunction<PoseCostFunction, ceres::CENTRAL, 1, 6>(
           new PoseCostFunction(model_i,
                                params_recon.cons[i],
                                params_cam));
       problem.AddResidualBlock(cost_function, NULL, params.data());
+#else
+      ceres::CostFunction *cost_function =
+        new PoseCostFunction_analytic(model_i, params_recon.cons[i], params_cam);
+      problem.AddResidualBlock(cost_function, NULL, params.data(), params.data()+3);
+#endif
     }
   }
 
@@ -372,9 +384,6 @@ void SingleImageReconstructor<Constraint>::OptimizeForFocalLength() {
     auto tm = model_i.GetTM();
     glm::dvec4 p(tm[0], tm[1], tm[2], 1.0);
     auto P = Mview * p;
-
-    double x_ref = sx * (0.5 - 0.5 * near / right * P.x / P.z);
-    double y_ref = sy * (0.5 - 0.5 * near / top * P.y / P.z);
 
     double x_z = P.x / P.z;
     double y_z = P.y / P.z;
