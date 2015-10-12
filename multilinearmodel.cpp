@@ -31,12 +31,33 @@ MultilinearModel MultilinearModel::project(const vector<int> &indices) const
 
 void MultilinearModel::UpdateTM0(const Tensor1 &w)
 {
+#if 0
   tm0 = core.ModeProduct<0>(w);
+#else
+  // tu0
+  // id0: | exp0 | exp1 | ... | expn |
+  // id1: | exp0 | exp1 | ... | expn |
+  // ...
+  // idn: | exp0 | exp1 | ... | expn |
+
+  auto tm0u = tu0.ModeProduct<0>(w);
+  tm0 = Tensor2::FoldByColumn(tm0u, core.rows(), core.cols());
+#endif
 }
 
 void MultilinearModel::UpdateTM1(const Tensor1 &w)
 {
+#if 1
   tm1 = core.ModeProduct<1>(w);
+#else
+  // tu1
+  // exp0: | x0 | y0 | z0 | ..
+  // exp1:
+  // ...
+  // expn:
+  auto tm1u = tu1.ModeProduct<0>(w);
+  tm1 = Tensor2::FoldByRow(tm1u, core.layers(), core.cols());
+#endif
 }
 
 void MultilinearModel::UpdateTMWithTM0(const Tensor1 &w)

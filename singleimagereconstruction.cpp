@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
 
   // Do reconstruction
   {
-    boost::timer::auto_cpu_timer timer;
+    boost::timer::auto_cpu_timer t("Reconstruction finished in %w seconds.\n");
     recon.Reconstruct();
   }
 

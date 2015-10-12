@@ -82,10 +82,19 @@ void MeshVisualizer::paintGL() {
 
     // Setup Camera's model-view-projection matrix
     glMatrixMode(GL_PROJECTION);
-    glm::dmat4 Mproj = glm::perspective(45.0,
-                                        static_cast<double>(width()) /
-                                        static_cast<double>(height()),
-                                        1.0, 100.0);
+
+    const double aspect_ratio =
+      camera_params.image_size.x / camera_params.image_size.y;
+
+    const double far = 100.0;
+    // near is the focal length
+    const double near = camera_params.focal_length.x;
+    const double top = 1.0;
+    const double right = top * aspect_ratio;
+    glm::dmat4 Mproj = glm::dmat4(near/right, 0, 0, 0,
+                                  0, near/top, 0, 0,
+                                  0, 0, -(far+near)/(far-near), -1,
+                                  0, 0, -2.0 * far * near / (far - near), 0.0);
 
     glLoadMatrixd(&Mproj[0][0]);
 

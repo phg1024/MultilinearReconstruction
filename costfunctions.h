@@ -12,12 +12,87 @@
 #include <eigen3/Eigen/Dense>
 using namespace Eigen;
 
-inline glm::dvec3 ProjectPoint(const glm::dvec3& p, const glm::dmat4& Mview, const CameraParameters& cam_params) {
-  glm::dmat4 Mproj = glm::perspective(45.0,
-                                      (double)cam_params.image_size.x / (double)cam_params.image_size.y,
-                                      1.0, 100.0);
+inline glm::dvec3 ProjectPoint_ref(const glm::dvec3& p, const glm::dmat4& Mview, const CameraParameters& cam_params) {
+  const double fovy = 45.0;
+  const double aspect_ratio = static_cast<double>(cam_params.image_size.x) /
+                              static_cast<double>(cam_params.image_size.y);
+  const double top = 1.0;
+  const double near = top / tan(fovy*0.5), far = 100.0;
+
+  glm::dmat4 Mproj = glm::perspective(fovy, aspect_ratio, near, far);
+
+  const double fx = cam_params.focal_length.x;
+  const double fy = cam_params.focal_length.y;
+
+  // The projection matrix should be
+  //   n/r, 0, 0, 0
+  //   0, n/t, 0, 0
+  //   0, 0, -(f+n)/(f-n), -2fn/(f-n)
+  //   0, 0, -1, 0
+  //
+  // Therefore, if we assume f is infinite we have the following projection matrix
+  //   n/r, 0, 0, 0
+  //   0, n/t, 0, 0
+  //   0, 0, -(f+n)/(f-n), -2fn/(f-n)
+  //   0, 0, -1, 0
+  //
+  // Note: tan(fovy/2) = t/n
+
+  glm::dmat4 Mproj_ref = glm::dmat4();
+
   glm::ivec4 viewport(0, 0, cam_params.image_size.x, cam_params.image_size.y);
+
+  // glm::project
+  // P = (p, 1.0)
+  // P = Mview * P
+  // P = Mproj * P
+  // => P.x = P.x * n / r
+  // => P.y = P.y * n / t
+  // => P.z = -(f+n)/(f-n)*P.z - 2 * f * n / (f-n)
+  // => P.w = -P.z
+  // P = P / P.w
+  // => P.x = -n / r * P.x / P.z
+  // => P.y = -n / t * P.y / P.z
+  // => P.z = -1.0 + 2 * n / P.z
+
+  // P = P * 0.5 + 0.5
+  // => P.x = -0.5 * n / r * P.x / P.z + 0.5
+  // => P.y = -0.5 * n / t * P.y / P.z + 0.5
+  // P.x = P.x * image_size_x + principle_x
+  // P.y = P.y * image_size_y + principle_y
+  // => P.x = -0.5 * n / r * image_size_x * P.x / P.z + 0.5 * image_size_x
+  // => P.y = -0.5 * n / t * image_size_y * P.y / P.z + 0.5 * image_size_y
+
   return glm::project(p, Mview, Mproj, viewport);
+}
+
+inline glm::dvec3 ProjectPoint(const glm::dvec3& p, const glm::dmat4& Mview, const CameraParameters& cam_params) {
+  // use a giant canvas: r = image_size_x, t = image_size_y
+  // then focal length = near plane z = 1.0
+
+  // View transform
+  glm::dvec4 P = Mview * glm::dvec4(p.x, p.y, p.z, 1.0);
+
+  const double far = 100.0;
+  const double near = cam_params.focal_length.x;
+  const double top = 1.0;
+  const double aspect_ratio = cam_params.image_size.x / cam_params.image_size.y;
+  const double right = top * aspect_ratio;
+
+  // Projection transform
+  P.w = -P.z;
+  P.x = near / right * P.x;
+  P.y = near / top * P.y;
+  P.z = -(far + near)/(far-near) * P.z - 2.0 * far * near / (far - near) * P.w;
+
+  P /= P.w;
+
+  P = 0.5 * P + 0.5;
+
+  P.x = P.x * cam_params.image_size.x;
+  P.y = P.y * cam_params.image_size.y;
+
+  return glm::dvec3(P.x, P.y, P.z);
 }
 
 template <typename VecType>

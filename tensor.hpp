@@ -56,6 +56,18 @@ public:
 
   VectorXd operator*(const VectorXd &v) const { return data * v; }
 
+  static Tensor2 FoldByColumn(Tensor1& v, int nrows, int ncols) {
+    Tensor2 t;
+    t.data = Eigen::Map<MatrixXd>(v.data(), ncols, nrows).transpose();
+    return t;
+  }
+
+  static Tensor2 FoldByRow(Tensor1& v, int nrows, int ncols) {
+    Tensor2 t;
+    t.data = Eigen::Map<MatrixXd>(v.data(), nrows, ncols);
+    return t;
+  }
+
   void Unfold(Tensor1 &v) const {
     v.resize(rows()*cols());
     for(int i=0,idx=0;i<rows();++i) {

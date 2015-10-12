@@ -3,6 +3,8 @@
 #include "basicmesh.h"
 #include "Geometry/MeshLoader.h"
 
+#include "boost/timer/timer.hpp"
+
 /// @brief Load a mesh from an OBJ file
 BasicMesh::BasicMesh(const string &filename)
 {
@@ -52,8 +54,9 @@ bool BasicMesh::LoadOBJMesh(const string& filename) {
   return true;
 }
 
-void BasicMesh::ComputeNormals()
-{
+void BasicMesh::ComputeNormals() {
+  boost::timer::auto_cpu_timer timer("Normals computation time = %w seconds.\n");
+
   norms.resize(faces.rows(), 3);
   vertex_norms.resize(verts.size(), 3);
   vertex_norms.setZero();
@@ -96,11 +99,10 @@ void BasicMesh::ComputeNormals()
   for(int i=0;i<vertex_norms.rows();++i) {
     vertex_norms.row(i) /= area_sum[i];
   }
-
-  cout << "Normals computed." << endl;
 }
 
 void BasicMesh::UpdateVertices(const VectorXd &vertices) {
+  boost::timer::auto_cpu_timer timer("Vertices update time = %w seconds.\n");
   const int num_vertices = NumVertices();
 #pragma omp parallel for
   for(int i=0;i<num_vertices;++i) {

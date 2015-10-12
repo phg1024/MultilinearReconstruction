@@ -11,6 +11,8 @@
 #include <eigen3/Eigen/Geometry>
 #include <eigen3/Eigen/LU>
 
+using namespace Eigen;
+
 #include "ceres/ceres.h"
 
 #include "basicmesh.h"
@@ -21,7 +23,7 @@
 #include "parameters.h"
 #include "utils.hpp"
 
-using namespace Eigen;
+#include "boost/timer/timer.hpp"
 
 template <typename Constraint>
 class SingleImageReconstructor {
@@ -64,10 +66,12 @@ public:
 protected:
   void OptimizeForPosition();
   void OptimizeForPose(int max_iterations);
+  void OptimizeForFocalLength();
   void OptimizeForExpression(int iteration);
   void OptimizeForExpression_FACS(int iteration);
   void OptimizeForIdentity(int iteration);
   void UpdateContourIndices();
+  double ComputeError();
 
 private:
   MultilinearModel model, model_projected;
@@ -98,47 +102,54 @@ void SingleImageReconstructor<Constraint>::LoadPriors(const string &filename_id,
 template <typename Constraint>
 bool SingleImageReconstructor<Constraint>::Reconstruct()
 {
-  // @todo Make the single image reconstructor work as a black box
-
   // Initialize parameters
   cout << "Reconstruction begins." << endl;
 
-  // Camera parameters
-  params_cam.focal_length = glm::vec2(1000.0, 1000.0);
-  params_cam.image_plane_center = glm::vec2(params_recon.imageWidth * 0.5,
-                                            params_recon.imageHeight * 0.5);
-  params_cam.image_size = glm::vec2(params_recon.imageWidth,
-                                    params_recon.imageHeight);
-
-  // Model parameters
-
-  // Make a neutral face
-  params_model.Wexp_FACS.resize(ModelParameters::nFACSDim);
-  params_model.Wexp_FACS(0) = 1.0;
-  for(int i=1;i<ModelParameters::nFACSDim;++i) params_model.Wexp_FACS(i) = 0.0;
-  params_model.Wexp = params_model.Wexp_FACS.transpose() * prior.Uexp;
-
-  // Use average identity
-  params_model.Wid = prior.Uid.row(0);
-
-  // No rotation and translation
-  params_model.R = Vector3d(0, 0, 0);
-  params_model.T = Vector3d(0, 0, -1.0);
-
-  model.ApplyWeights(params_model.Wid, params_model.Wexp);
-
-  for(int i=0;i<indices.size();++i) {
-    params_recon.cons[i].vidx = indices[i];
-  }
-
-  // Assign lower weights to contour points
   const int num_contour_points = 15;
-  for(int i=0;i<num_contour_points;++i) {
-    params_recon.cons[i].weight = 1.0;
+
+  // Initialization
+  {
+    boost::timer::auto_cpu_timer timer(
+      "Parameters initialization time = %w seconds.\n");
+
+    // Camera parameters
+    params_cam.focal_length = glm::vec2(1.0 / tan(0.5 * 45.0),
+                                        1.0 / tan(0.5 * 45.0));
+    params_cam.image_plane_center = glm::vec2(params_recon.imageWidth * 0.5,
+                                              params_recon.imageHeight * 0.5);
+    params_cam.image_size = glm::vec2(params_recon.imageWidth,
+                                      params_recon.imageHeight);
+
+    // Model parameters
+
+    // Make a neutral face
+    params_model.Wexp_FACS.resize(ModelParameters::nFACSDim);
+    params_model.Wexp_FACS(0) = 1.0;
+    for (int i = 1; i < ModelParameters::nFACSDim; ++i)
+      params_model.Wexp_FACS(i) = 0.0;
+    params_model.Wexp = params_model.Wexp_FACS.transpose() * prior.Uexp;
+
+    // Use average identity
+    params_model.Wid = prior.Uid.row(0);
+
+    // No rotation and translation
+    params_model.R = Vector3d(0, 0, 0);
+    params_model.T = Vector3d(0, 0, -1.0);
+
+    model.ApplyWeights(params_model.Wid, params_model.Wexp);
+
+    for (int i = 0; i < indices.size(); ++i) {
+      params_recon.cons[i].vidx = indices[i];
+    }
+
+    // Assign lower weights to contour points
+    for (int i = 0; i < num_contour_points; ++i) {
+      params_recon.cons[i].weight = 1.0;
+    }
   }
 
   // Reconstruction begins
-  const int kMaxIterations = 4;
+  const int kMaxIterations = 8;
   const double init_weights = 1.0;
   prior.weight_Wid = 1.0;
   const double d_wid = 0.25;
@@ -152,7 +163,10 @@ bool SingleImageReconstructor<Constraint>::Reconstruct()
   while( iters++ < kMaxIterations ) {
     for (int pose_opt_iter = 0; pose_opt_iter < 2; ++pose_opt_iter) {
       OptimizeForPose(2);
-      model.ApplyWeights(params_model.Wid, params_model.Wexp);
+      {
+        boost::timer::auto_cpu_timer timer("Multilinear model weights update time = %w seconds.\n");
+        model.ApplyWeights(params_model.Wid, params_model.Wexp);
+      }
       mesh.UpdateVertices(model.GetTM());
       mesh.ComputeNormals();
       UpdateContourIndices();
@@ -160,14 +174,25 @@ bool SingleImageReconstructor<Constraint>::Reconstruct()
     //OptimizeForExpression(2);
     OptimizeForExpression_FACS(2);
 
+    OptimizeForFocalLength();
+
     for (int pose_opt_iter = 0; pose_opt_iter < 2; ++pose_opt_iter) {
       OptimizeForPose(2);
-      model.ApplyWeights(params_model.Wid, params_model.Wexp);
+      {
+        boost::timer::auto_cpu_timer timer("Multilinear model weights update time = %w seconds.\n");
+        model.ApplyWeights(params_model.Wid, params_model.Wexp);
+      }
       mesh.UpdateVertices(model.GetTM());
       mesh.ComputeNormals();
       UpdateContourIndices();
     }
     OptimizeForIdentity(2);
+
+    OptimizeForFocalLength();
+
+    double E = ComputeError();
+
+    ColorStream(ColorOutput::Red) << "Iteration " << iters << " Error = " << E;
 
     // Adjust weights
     prior.weight_Wid -= d_wid;
@@ -184,76 +209,193 @@ bool SingleImageReconstructor<Constraint>::Reconstruct()
 }
 
 template <typename Constraint>
+double SingleImageReconstructor<Constraint>::ComputeError() {
+  boost::timer::auto_cpu_timer timer_all("Error computation time = %w seconds.\n");
+
+  // Create view matrix
+  auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1], params_model.R[2]);
+  glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
+                                   glm::dvec3(params_model.T[0], params_model.T[1], params_model.T[2]));
+  glm::dmat4 Mview = Tmat * Rmat;
+
+  // Create projection matrix
+  const double aspect_ratio =
+    params_cam.image_size.x / params_cam.image_size.y;
+
+  const double far = 100.0;
+  // near is the focal length
+  const double near = params_cam.focal_length.x;
+  const double top = 1.0;
+  const double right = top * aspect_ratio;
+  glm::dmat4 Mproj = glm::dmat4(near/right, 0, 0, 0,
+                                0, near/top, 0, 0,
+                                0, 0, -(far+near)/(far-near), -1,
+                                0, 0, -2.0 * far * near / (far - near), 0.0);
+
+  double E = 0;
+  for (int i = 0; i < indices.size(); ++i) {
+    auto model_i = model.project(vector<int>(1, indices[i]));
+    model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+    auto tm = model_i.GetTM();
+    glm::dvec3 p(tm[0], tm[1], tm[2]);
+    auto q = ProjectPoint(p, Mview, params_cam);
+    double dx = q.x - params_recon.cons[i].data.x;
+    double dy = q.y - params_recon.cons[i].data.y;
+    E += dx * dx + dy * dy;
+  }
+
+  return E;
+}
+
+template <typename Constraint>
 void SingleImageReconstructor<Constraint>::OptimizeForPosition() {
+  boost::timer::auto_cpu_timer timer_all("Position optimization time = %w seconds.\n");
+
   ceres::Problem problem;
   vector<double> params{params_model.T[0], params_model.T[1], params_model.T[2]};
 
-  for(int i=0;i<indices.size();++i) {
-    auto model_i = model.project(vector<int>(1, indices[i]));
-    model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
-    ceres::CostFunction *cost_function =
-      new ceres::NumericDiffCostFunction<PositionCostFunction, ceres::CENTRAL, 1, 3>(
-        new PositionCostFunction(model_i,
-                             params_recon.cons[i],
-                             params_cam));
-    problem.AddResidualBlock(cost_function, NULL, params.data());
+  {
+    boost::timer::auto_cpu_timer timer_construction("Problem construction time = %w seconds.\n");
+
+    for (int i = 0; i < indices.size(); ++i) {
+      auto model_i = model.project(vector<int>(1, indices[i]));
+      model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+      ceres::CostFunction *cost_function =
+        new ceres::NumericDiffCostFunction<PositionCostFunction, ceres::CENTRAL, 1, 3>(
+          new PositionCostFunction(model_i,
+                                   params_recon.cons[i],
+                                   params_cam));
+      problem.AddResidualBlock(cost_function, NULL, params.data());
+    }
   }
 
-  ceres::Solver::Options options;
-  options.max_num_iterations = 30;
-  options.minimizer_progress_to_stdout = true;
-  ceres::Solver::Summary summary;
-  Solve(options, &problem, &summary);
+  {
+    ceres::Solver::Options options;
+    options.max_num_iterations = 30;
+    DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
+    ceres::Solver::Summary summary;
 
-  cout << summary.BriefReport() << endl;
+
+    boost::timer::auto_cpu_timer timer_solve(
+      "Problem solve time = %w seconds.\n");
+    Solve(options, &problem, &summary);
+
+    DEBUG_OUTPUT(summary.BriefReport());
+  }
+
   Vector3d newT(params[0], params[1], params[2]);
-  cout << "T: " << params_model.T.transpose() << " -> " << newT.transpose() << endl;
+
+  DEBUG_OUTPUT("T: " << params_model.T.transpose() << " -> " << newT.transpose());
+
   params_model.T = newT;
 }
 
 template <typename Constraint>
 void SingleImageReconstructor<Constraint>::OptimizeForPose(int max_iters) {
+  boost::timer::auto_cpu_timer timer_all("[Pose optimization] Total time = %w seconds.\n");
+
   ceres::Problem problem;
   vector<double> params{params_model.R[0], params_model.R[1], params_model.R[2],
                         params_model.T[0], params_model.T[1], params_model.T[2]};
 
-  for(int i=0;i<indices.size();++i) {
-    auto model_i = model.project(vector<int>(1, indices[i]));
-    model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
-    ceres::CostFunction *cost_function =
-      new ceres::NumericDiffCostFunction<PoseCostFunction, ceres::CENTRAL, 1, 6>(
-        new PoseCostFunction(model_i,
-                             params_recon.cons[i],
-                             params_cam));
-    problem.AddResidualBlock(cost_function, NULL, params.data());
+  {
+    boost::timer::auto_cpu_timer timer_construction("[Pose optimization] Problem construction time = %w seconds.\n");
+    for (int i = 0; i < indices.size(); ++i) {
+      auto model_i = model.project(vector<int>(1, indices[i]));
+      model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+      ceres::CostFunction *cost_function =
+        new ceres::NumericDiffCostFunction<PoseCostFunction, ceres::CENTRAL, 1, 6>(
+          new PoseCostFunction(model_i,
+                               params_recon.cons[i],
+                               params_cam));
+      problem.AddResidualBlock(cost_function, NULL, params.data());
+    }
   }
 
-  ceres::Solver::Options options;
-  options.max_num_iterations = max_iters;
-  options.minimizer_type = ceres::LINE_SEARCH;
-  options.line_search_direction_type = ceres::LBFGS;
-  options.minimizer_progress_to_stdout = true;
-  ceres::Solver::Summary summary;
-  Solve(options, &problem, &summary);
+  {
+    ceres::Solver::Options options;
+    options.max_num_iterations = max_iters;
+    options.minimizer_type = ceres::LINE_SEARCH;
+    options.line_search_direction_type = ceres::LBFGS;
+    DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
+    ceres::Solver::Summary summary;
 
-  cout << summary.BriefReport() << endl;
+    boost::timer::auto_cpu_timer timer_solve(
+      "[Pose optimization] Problem solve time = %w seconds.\n");
+    Solve(options, &problem, &summary);
+
+
+    DEBUG_OUTPUT(summary.BriefReport())
+  }
+
   Vector3d newR(params[0], params[1], params[2]);
   Vector3d newT(params[3], params[4], params[5]);
-  cout << "R: " << params_model.R.transpose() << " -> " << newR.transpose() << endl;
-  cout << "T: " << params_model.T.transpose() << " -> " << newT.transpose() << endl;
+  DEBUG_OUTPUT("R: " << params_model.R.transpose() << " -> " << newR.transpose())
+  DEBUG_OUTPUT("T: " << params_model.T.transpose() << " -> " << newT.transpose())
   params_model.R = newR;
   params_model.T = newT;
 }
 
 template <typename Constraint>
-void SingleImageReconstructor<Constraint>::OptimizeForExpression(int iteration) {
+void SingleImageReconstructor<Constraint>::OptimizeForFocalLength() {
+  boost::timer::auto_cpu_timer timer_all("[Focal length optimization] Total time = %w seconds.\n");
+
   // Create view matrix
   auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1], params_model.R[2]);
   glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
                                    glm::dvec3(params_model.T[0], params_model.T[1], params_model.T[2]));
   glm::dmat4 Mview = Tmat * Rmat;
 
-  VectorXd params = params_model.Wexp;
+  // Create projection matrix
+  const double aspect_ratio =
+    params_cam.image_size.x / params_cam.image_size.y;
+
+  const double far = 100.0;
+  // near is the focal length
+  const double near = params_cam.focal_length.x;
+  const double top = 1.0;
+  const double right = top * aspect_ratio;
+  glm::dmat4 Mproj = glm::dmat4(near/right, 0, 0, 0,
+                                0, near/top, 0, 0,
+                                0, 0, -(far+near)/(far-near), -1,
+                                0, 0, -2.0 * far * near / (far - near), 0.0);
+
+  double numer = 0.0, denom = 0.0;
+  const double sx = params_cam.image_size.x, sy = params_cam.image_size.y;
+  for (int i = 0; i < indices.size(); ++i) {
+    auto model_i = model.project(vector<int>(1, indices[i]));
+    model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+
+    auto tm = model_i.GetTM();
+    glm::dvec4 p(tm[0], tm[1], tm[2], 1.0);
+    auto P = Mview * p;
+
+    double x_ref = sx * (0.5 - 0.5 * near / right * P.x / P.z);
+    double y_ref = sy * (0.5 - 0.5 * near / top * P.y / P.z);
+
+    double x_z = P.x / P.z;
+    double y_z = P.y / P.z;
+
+    double xi = params_recon.cons[i].data.x;
+    double yi = params_recon.cons[i].data.y;
+
+    numer += (sx - 2 * xi) * x_z + (sy - 2 * yi) * y_z;
+    denom += sy * (x_z * x_z + y_z * y_z);
+  }
+  double new_f = numer / denom;
+  cout << "focal length: " << params_cam.focal_length.x << " -> " << new_f << endl;
+  params_cam.focal_length.x = new_f;
+}
+
+template <typename Constraint>
+void SingleImageReconstructor<Constraint>::OptimizeForExpression(int iteration) {
+  boost::timer::auto_cpu_timer timer_all("[Expression optimization] Total time = %w seconds.\n");
+
+  // Create view matrix
+  auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1], params_model.R[2]);
+  glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
+                                   glm::dvec3(params_model.T[0], params_model.T[1], params_model.T[2]));
+  glm::dmat4 Mview = Tmat * Rmat;
 
   double puple_distance = glm::distance(0.5 * (params_recon.cons[28].data + params_recon.cons[30].data),
                                         0.5 * (params_recon.cons[32].data + params_recon.cons[34].data));
@@ -261,60 +403,67 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression(int iteration) 
 
   // Define the optimization problem
   ceres::Problem problem;
+  VectorXd params = params_model.Wexp;
 
-  for(int i=0;i<indices.size();++i) {
-    auto model_i = model.project(vector<int>(1, indices[i]));
-    model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
-    ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction> *cost_function =
-      new ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction>(
-        new ExpressionCostFunction(model_i,
-                                   params_recon.cons[i],
-                                   params.size(),
-                                   Mview,
-                                   params_cam));
-    cost_function->AddParameterBlock(params.size());
-    cost_function->SetNumResiduals(1);
-    problem.AddResidualBlock(cost_function, NULL, params.data());
+  {
+    boost::timer::auto_cpu_timer timer_construction("[Expression optimization] Problem construction time = %w seconds.\n");
+    for (int i = 0; i < indices.size(); ++i) {
+      auto model_i = model.project(vector<int>(1, indices[i]));
+      model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+      ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction> *cost_function =
+        new ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction>(
+          new ExpressionCostFunction(model_i,
+                                     params_recon.cons[i],
+                                     params.size(),
+                                     Mview,
+                                     params_cam));
+      cost_function->AddParameterBlock(params.size());
+      cost_function->SetNumResiduals(1);
+      problem.AddResidualBlock(cost_function, NULL, params.data());
+    }
+
+    ceres::DynamicNumericDiffCostFunction<PriorCostFunction> *prior_cost_function =
+      new ceres::DynamicNumericDiffCostFunction<PriorCostFunction>(
+        new PriorCostFunction(prior.Wexp_avg, prior.inv_sigma_Wexp,
+                              prior.weight_Wexp * prior_scale));
+    prior_cost_function->AddParameterBlock(params.size());
+    prior_cost_function->SetNumResiduals(1);
+    problem.AddResidualBlock(prior_cost_function, NULL, params.data());
   }
 
-  ceres::DynamicNumericDiffCostFunction<PriorCostFunction> *prior_cost_function =
-    new ceres::DynamicNumericDiffCostFunction<PriorCostFunction>(
-      new PriorCostFunction(prior.Wexp_avg, prior.inv_sigma_Wexp, prior.weight_Wexp * prior_scale));
-  prior_cost_function->AddParameterBlock(params.size());
-  prior_cost_function->SetNumResiduals(1);
-  problem.AddResidualBlock(prior_cost_function, NULL, params.data());
-
   // Solve it
-  ceres::Solver::Options options;
-  options.max_num_iterations = iteration * 3;
-  options.minimizer_type = ceres::LINE_SEARCH;
-  options.line_search_direction_type = ceres::LBFGS;
-  options.minimizer_progress_to_stdout = true;
-  ceres::Solver::Summary summary;
-  Solve(options, &problem, &summary);
-  cout << summary.BriefReport() << endl;
+  {
+    boost::timer::auto_cpu_timer timer_solve("[Expression optimization] Problem solve time = %w seconds.\n");
+    ceres::Solver::Options options;
+    options.max_num_iterations = iteration * 3;
+    options.minimizer_type = ceres::LINE_SEARCH;
+    options.line_search_direction_type = ceres::LBFGS;
+    DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
+    ceres::Solver::Summary summary;
+    Solve(options, &problem, &summary);
+    DEBUG_OUTPUT(summary.BriefReport())
 
-  options.max_num_iterations = iteration * 5;
-  options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
-  Solve(options, &problem, &summary);
-  cout << summary.BriefReport() << endl;
+    options.max_num_iterations = iteration * 5;
+    options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
+    Solve(options, &problem, &summary);
+    DEBUG_OUTPUT(summary.BriefReport())
+  }
 
   // Update the model parameters
-  cout << params_model.Wexp.transpose() << endl
-       << " -> " << endl
-       << params.transpose() << endl;
+  DEBUG_OUTPUT(params_model.Wexp.transpose() << endl
+               << " -> " << endl
+               << params.transpose())
   params_model.Wexp = params;
 }
 
 template <typename Constraint>
 void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(int iteration) {
+  boost::timer::auto_cpu_timer timer_all("[Expression optimization] Total time = %w seconds.\n");
   // Create view matrix
   auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1], params_model.R[2]);
   glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
                                    glm::dvec3(params_model.T[0], params_model.T[1], params_model.T[2]));
   glm::dmat4 Mview = Tmat * Rmat;
-
-  VectorXd params = params_model.Wexp_FACS;
 
   double puple_distance = glm::distance(0.5 * (params_recon.cons[28].data + params_recon.cons[30].data),
                                         0.5 * (params_recon.cons[32].data + params_recon.cons[34].data));
@@ -322,62 +471,72 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(int iterat
 
   // Define the optimization problem
   ceres::Problem problem;
+  VectorXd params = params_model.Wexp_FACS;
 
-  for(int i=0;i<indices.size();++i) {
-    auto model_i = model.project(vector<int>(1, indices[i]));
-    model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
-    ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction_FACS> *cost_function =
-      new ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction_FACS>(
-        new ExpressionCostFunction_FACS(model_i,
-                                   params_recon.cons[i],
-                                   params.size(),
-                                   Mview,
-                                   prior.Uexp,
-                                   params_cam));
-    cost_function->AddParameterBlock(params.size());
-    cost_function->SetNumResiduals(1);
-    problem.AddResidualBlock(cost_function, NULL, params.data());
+  {
+    boost::timer::auto_cpu_timer timer_construction("[Expression optimization] Problem construction time = %w seconds.\n");
+    for(int i=0;i<indices.size();++i) {
+      auto model_i = model.project(vector<int>(1, indices[i]));
+      model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+      ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction_FACS> *cost_function =
+        new ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction_FACS>(
+          new ExpressionCostFunction_FACS(model_i,
+                                          params_recon.cons[i],
+                                          params.size(),
+                                          Mview,
+                                          prior.Uexp,
+                                          params_cam));
+      cost_function->AddParameterBlock(params.size());
+      cost_function->SetNumResiduals(1);
+      problem.AddResidualBlock(cost_function, NULL, params.data());
+    }
+
+    ceres::DynamicNumericDiffCostFunction<ExpressionRegularizationCostFunction> *prior_cost_function =
+      new ceres::DynamicNumericDiffCostFunction<ExpressionRegularizationCostFunction>(
+        new ExpressionRegularizationCostFunction(prior.Wexp_avg,
+                                                 prior.inv_sigma_Wexp,
+                                                 prior.Uexp, prior.weight_Wexp *
+                                                             prior_scale));
+    prior_cost_function->AddParameterBlock(params.size());
+    prior_cost_function->SetNumResiduals(1);
+    problem.AddResidualBlock(prior_cost_function, NULL, params.data());
   }
 
-  ceres::DynamicNumericDiffCostFunction<ExpressionRegularizationCostFunction> *prior_cost_function =
-    new ceres::DynamicNumericDiffCostFunction<ExpressionRegularizationCostFunction>(
-      new ExpressionRegularizationCostFunction(prior.Wexp_avg, prior.inv_sigma_Wexp, prior.Uexp, prior.weight_Wexp * prior_scale));
-  prior_cost_function->AddParameterBlock(params.size());
-  prior_cost_function->SetNumResiduals(1);
-  problem.AddResidualBlock(prior_cost_function, NULL, params.data());
-
   // Solve it
-  ceres::Solver::Options options;
-  options.max_num_iterations = iteration * 3;
-  options.minimizer_type = ceres::LINE_SEARCH;
-  options.line_search_direction_type = ceres::LBFGS;
-  options.minimizer_progress_to_stdout = true;
-  ceres::Solver::Summary summary;
-  Solve(options, &problem, &summary);
-  cout << summary.FullReport() << endl;
+  {
+    boost::timer::auto_cpu_timer timer_solve("[Expression optimization] Problem solve time = %w seconds.\n");
+    ceres::Solver::Options options;
+    options.max_num_iterations = iteration * 3;
+    options.minimizer_type = ceres::LINE_SEARCH;
+    options.line_search_direction_type = ceres::LBFGS;
+    DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
+    ceres::Solver::Summary summary;
+    Solve(options, &problem, &summary);
+    DEBUG_OUTPUT(summary.BriefReport())
 
-  options.max_num_iterations = iteration * 5;
-  options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
-  Solve(options, &problem, &summary);
-  cout << summary.FullReport() << endl;
+    options.max_num_iterations = iteration * 5;
+    options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
+    Solve(options, &problem, &summary);
+    DEBUG_OUTPUT(summary.BriefReport())
+  }
 
   // Update the model parameters
-  cout << params_model.Wexp_FACS.transpose() << endl
-  << " -> " << endl
-  << params.transpose() << endl;
+  DEBUG_OUTPUT(params_model.Wexp_FACS.transpose() << endl
+               << " -> " << endl
+               << params.transpose())
   params_model.Wexp_FACS = params;
   params_model.Wexp = params_model.Wexp_FACS.transpose() * prior.Uexp;
 }
 
 template <typename Constraint>
 void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
+  boost::timer::auto_cpu_timer timer_all("[Identity optimization] Total time = %w seconds.\n");
+
   // Create view matrix
   auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1], params_model.R[2]);
   glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
                                    glm::dvec3(params_model.T[0], params_model.T[1], params_model.T[2]));
   glm::dmat4 Mview = Tmat * Rmat;
-
-  VectorXd params = params_model.Wid;
 
   double puple_distance = glm::distance(0.5 * (params_recon.cons[28].data + params_recon.cons[30].data),
                                         0.5 * (params_recon.cons[32].data + params_recon.cons[34].data));
@@ -385,53 +544,61 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
 
   // Define the optimization problem
   ceres::Problem problem;
+  VectorXd params = params_model.Wid;
 
-  for(int i=0;i<indices.size();++i) {
-    auto model_i = model.project(vector<int>(1, indices[i]));
-    model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
-    ceres::DynamicNumericDiffCostFunction<IdentityCostFunction> *cost_function =
-      new ceres::DynamicNumericDiffCostFunction<IdentityCostFunction>(
-        new IdentityCostFunction(model_i,
-                                 params_recon.cons[i],
-                                 params.size(),
-                                 Mview,
-                                 params_cam));
-    cost_function->AddParameterBlock(params.size());
-    cost_function->SetNumResiduals(1);
-    problem.AddResidualBlock(cost_function, NULL, params.data());
+  {
+    boost::timer::auto_cpu_timer timer_construction("[Identity optimization] Problem construction time = %w seconds.\n");
+    for (int i = 0; i < indices.size(); ++i) {
+      auto model_i = model.project(vector<int>(1, indices[i]));
+      model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+      ceres::DynamicNumericDiffCostFunction<IdentityCostFunction> *cost_function =
+        new ceres::DynamicNumericDiffCostFunction<IdentityCostFunction>(
+          new IdentityCostFunction(model_i,
+                                   params_recon.cons[i],
+                                   params.size(),
+                                   Mview,
+                                   params_cam));
+      cost_function->AddParameterBlock(params.size());
+      cost_function->SetNumResiduals(1);
+      problem.AddResidualBlock(cost_function, NULL, params.data());
+    }
+
+    ceres::DynamicNumericDiffCostFunction<PriorCostFunction> *prior_cost_function =
+      new ceres::DynamicNumericDiffCostFunction<PriorCostFunction>(
+        new PriorCostFunction(prior.Wid_avg, prior.inv_sigma_Wid,
+                              prior.weight_Wid * prior_scale));
+    prior_cost_function->AddParameterBlock(params.size());
+    prior_cost_function->SetNumResiduals(1);
+    problem.AddResidualBlock(prior_cost_function, NULL, params.data());
   }
 
-  ceres::DynamicNumericDiffCostFunction<PriorCostFunction> *prior_cost_function =
-    new ceres::DynamicNumericDiffCostFunction<PriorCostFunction>(
-      new PriorCostFunction(prior.Wid_avg, prior.inv_sigma_Wid, prior.weight_Wid * prior_scale));
-  prior_cost_function->AddParameterBlock(params.size());
-  prior_cost_function->SetNumResiduals(1);
-  problem.AddResidualBlock(prior_cost_function, NULL, params.data());
-
   // Solve it
-  ceres::Solver::Options options;
-  options.max_num_iterations = iteration * 3;
-  options.minimizer_type = ceres::LINE_SEARCH;
-  options.line_search_direction_type = ceres::LBFGS;
-  options.minimizer_progress_to_stdout = true;
-  ceres::Solver::Summary summary;
-  Solve(options, &problem, &summary);
-  cout << summary.BriefReport() << endl;
+  {
+    boost::timer::auto_cpu_timer timer_solve("[Identity optimization] Problem solve time = %w seconds.\n");
+    ceres::Solver::Options options;
+    options.max_num_iterations = iteration * 3;
+    options.minimizer_type = ceres::LINE_SEARCH;
+    options.line_search_direction_type = ceres::LBFGS;
+    DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
+    ceres::Solver::Summary summary;
+    Solve(options, &problem, &summary);
+    DEBUG_OUTPUT(summary.BriefReport())
 
-  options.max_num_iterations = iteration * 5;
-  options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
-  Solve(options, &problem, &summary);
-  cout << summary.BriefReport() << endl;
+    options.max_num_iterations = iteration * 5;
+    options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
+    Solve(options, &problem, &summary);
+    DEBUG_OUTPUT(summary.BriefReport())
+  }
 
   // Update the model parameters
-  cout << params_model.Wid.transpose() << endl
-  << " -> " << endl
-  << params.transpose() << endl;
+  DEBUG_OUTPUT(params_model.Wid.transpose() << endl << " -> " << endl <<
+               params.transpose())
   params_model.Wid = params;
 }
 
 template <typename Constraint>
 void SingleImageReconstructor<Constraint>::UpdateContourIndices() {
+  boost::timer::auto_cpu_timer timer("Contour vertices update time = %w seconds.\n");
   // Create view matrix
   auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1], params_model.R[2]);
   glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
