@@ -113,8 +113,10 @@ bool SingleImageReconstructor<Constraint>::Reconstruct()
       "Parameters initialization time = %w seconds.\n");
 
     // Camera parameters
-    params_cam.focal_length = glm::vec2(1.0 / tan(0.5 * 45.0),
-                                        1.0 / tan(0.5 * 45.0));
+    // Typical camera fov for 50mm cameras
+    params_cam.fovy = 40.0 / 180.0 * 3.1415926;
+    params_cam.far = 100.0;
+    params_cam.focal_length = 1.0 / tan(0.5 * params_cam.fovy);
     params_cam.image_plane_center = glm::vec2(params_recon.imageWidth * 0.5,
                                               params_recon.imageHeight * 0.5);
     params_cam.image_size = glm::vec2(params_recon.imageWidth,
@@ -217,20 +219,6 @@ double SingleImageReconstructor<Constraint>::ComputeError() {
   glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
                                    glm::dvec3(params_model.T[0], params_model.T[1], params_model.T[2]));
   glm::dmat4 Mview = Tmat * Rmat;
-
-  // Create projection matrix
-  const double aspect_ratio =
-    params_cam.image_size.x / params_cam.image_size.y;
-
-  const double far = 100.0;
-  // near is the focal length
-  const double near = params_cam.focal_length.x;
-  const double top = 1.0;
-  const double right = top * aspect_ratio;
-  glm::dmat4 Mproj = glm::dmat4(near/right, 0, 0, 0,
-                                0, near/top, 0, 0,
-                                0, 0, -(far+near)/(far-near), -1,
-                                0, 0, -2.0 * far * near / (far - near), 0.0);
 
   double E = 0;
   for (int i = 0; i < indices.size(); ++i) {
@@ -350,15 +338,11 @@ void SingleImageReconstructor<Constraint>::OptimizeForFocalLength() {
   const double aspect_ratio =
     params_cam.image_size.x / params_cam.image_size.y;
 
-  const double far = 100.0;
+  const double far = params_cam.far;
   // near is the focal length
-  const double near = params_cam.focal_length.x;
-  const double top = 1.0;
+  const double near = params_cam.focal_length;
+  const double top = near * tan(params_cam.fovy * 0.5);
   const double right = top * aspect_ratio;
-  glm::dmat4 Mproj = glm::dmat4(near/right, 0, 0, 0,
-                                0, near/top, 0, 0,
-                                0, 0, -(far+near)/(far-near), -1,
-                                0, 0, -2.0 * far * near / (far - near), 0.0);
 
   double numer = 0.0, denom = 0.0;
   const double sx = params_cam.image_size.x, sy = params_cam.image_size.y;
@@ -383,8 +367,8 @@ void SingleImageReconstructor<Constraint>::OptimizeForFocalLength() {
     denom += sy * (x_z * x_z + y_z * y_z);
   }
   double new_f = numer / denom;
-  cout << "focal length: " << params_cam.focal_length.x << " -> " << new_f << endl;
-  params_cam.focal_length.x = new_f;
+  cout << "focal length: " << params_cam.focal_length << " -> " << new_f << endl;
+  params_cam.focal_length = new_f;
 }
 
 template <typename Constraint>

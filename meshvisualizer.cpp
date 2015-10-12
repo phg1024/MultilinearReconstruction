@@ -86,10 +86,10 @@ void MeshVisualizer::paintGL() {
     const double aspect_ratio =
       camera_params.image_size.x / camera_params.image_size.y;
 
-    const double far = 100.0;
+    const double far = camera_params.far;
     // near is the focal length
-    const double near = camera_params.focal_length.x;
-    const double top = 1.0;
+    const double near = camera_params.focal_length;
+    const double top = near * tan(0.5 * camera_params.fovy);
     const double right = top * aspect_ratio;
     glm::dmat4 Mproj = glm::dmat4(near/right, 0, 0, 0,
                                   0, near/top, 0, 0,

@@ -21,9 +21,6 @@ inline glm::dvec3 ProjectPoint_ref(const glm::dvec3& p, const glm::dmat4& Mview,
 
   glm::dmat4 Mproj = glm::perspective(fovy, aspect_ratio, near, far);
 
-  const double fx = cam_params.focal_length.x;
-  const double fy = cam_params.focal_length.y;
-
   // The projection matrix should be
   //   n/r, 0, 0, 0
   //   0, n/t, 0, 0
@@ -73,9 +70,9 @@ inline glm::dvec3 ProjectPoint(const glm::dvec3& p, const glm::dmat4& Mview, con
   // View transform
   glm::dvec4 P = Mview * glm::dvec4(p.x, p.y, p.z, 1.0);
 
-  const double far = 100.0;
-  const double near = cam_params.focal_length.x;
-  const double top = 1.0;
+  const double far = cam_params.far;
+  const double near = cam_params.focal_length;
+  const double top = near * tan(0.5 * cam_params.fovy);
   const double aspect_ratio = cam_params.image_size.x / cam_params.image_size.y;
   const double right = top * aspect_ratio;
 
