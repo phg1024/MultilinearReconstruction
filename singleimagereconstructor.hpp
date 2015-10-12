@@ -74,7 +74,8 @@ protected:
   double ComputeError();
 
 private:
-  MultilinearModel model, model_projected;
+  MultilinearModel model;
+  vector<MultilinearModel> model_projected;
   MultilinearModelPrior prior;
   vector<vector<int>> contour_indices;
 
@@ -85,6 +86,7 @@ private:
   ModelParameters params_model;
   ReconstructionParameters<Constraint> params_recon;
   OptimizationParameters params_opt;
+  bool need_precise_result;
 };
 
 template <typename Constraint>
@@ -148,10 +150,18 @@ bool SingleImageReconstructor<Constraint>::Reconstruct()
     for (int i = 0; i < num_contour_points; ++i) {
       params_recon.cons[i].weight = 1.0;
     }
+
+    // Create initial projected models
+    model_projected.resize(params_recon.cons.size());
+    for(int i=0;i<params_recon.cons.size();++i) {
+      model_projected[i] = model.project(vector<int>(1, indices[i]));
+      model_projected[i].ApplyWeights(params_model.Wid, params_model.Wexp);
+    }
   }
 
   // Reconstruction begins
-  const int kMaxIterations = 8;
+  need_precise_result = false;
+  const int kMaxIterations = need_precise_result?8:4;
   const double init_weights = 1.0;
   prior.weight_Wid = 1.0;
   const double d_wid = 0.25;
@@ -163,45 +173,56 @@ bool SingleImageReconstructor<Constraint>::Reconstruct()
   OptimizeForPosition();
 
   while( iters++ < kMaxIterations ) {
-    for (int pose_opt_iter = 0; pose_opt_iter < 2; ++pose_opt_iter) {
-      OptimizeForPose(2);
+    ColorStream(ColorOutput::Green) << "Iteration " << iters << " begins.";
+    {
+      boost::timer::auto_cpu_timer timer_loop("[Main loop] Iteration time = %w seconds.\n");
+
       {
-        boost::timer::auto_cpu_timer timer("Multilinear model weights update time = %w seconds.\n");
+        boost::timer::auto_cpu_timer timer(
+          "[Main loop] Multilinear model weights update time = %w seconds.\n");
         model.ApplyWeights(params_model.Wid, params_model.Wexp);
       }
       mesh.UpdateVertices(model.GetTM());
       mesh.ComputeNormals();
-      UpdateContourIndices();
-    }
-    //OptimizeForExpression(2);
-    OptimizeForExpression_FACS(2);
 
-    OptimizeForFocalLength();
+      for (int pose_opt_iter = 0; pose_opt_iter < 2; ++pose_opt_iter) {
+        OptimizeForPose(2);
+        UpdateContourIndices();
+      }
+      //OptimizeForExpression(2);
+      OptimizeForExpression_FACS(2);
 
-    for (int pose_opt_iter = 0; pose_opt_iter < 2; ++pose_opt_iter) {
-      OptimizeForPose(2);
+      OptimizeForFocalLength();
+
       {
-        boost::timer::auto_cpu_timer timer("Multilinear model weights update time = %w seconds.\n");
+        boost::timer::auto_cpu_timer timer(
+          "[Main loop] Multilinear model weights update time = %w seconds.\n");
         model.ApplyWeights(params_model.Wid, params_model.Wexp);
       }
       mesh.UpdateVertices(model.GetTM());
       mesh.ComputeNormals();
-      UpdateContourIndices();
+
+      for (int pose_opt_iter = 0; pose_opt_iter < 2; ++pose_opt_iter) {
+        OptimizeForPose(2);
+        UpdateContourIndices();
+      }
+      OptimizeForIdentity(2);
+
+      OptimizeForFocalLength();
+
+      double E = ComputeError();
+
+      ColorStream(ColorOutput::Red) << "Iteration " << iters << " Error = " <<
+      E;
+
+      // Adjust weights
+      prior.weight_Wid -= d_wid;
+      prior.weight_Wexp -= d_wexp;
+      for (int i = 0; i < num_contour_points; ++i) {
+        params_recon.cons[i].weight = sqrt(params_recon.cons[i].weight);
+      }
     }
-    OptimizeForIdentity(2);
-
-    OptimizeForFocalLength();
-
-    double E = ComputeError();
-
-    ColorStream(ColorOutput::Red) << "Iteration " << iters << " Error = " << E;
-
-    // Adjust weights
-    prior.weight_Wid -= d_wid;
-    prior.weight_Wexp -= d_wexp;
-    for(int i=0;i<num_contour_points;++i) {
-      params_recon.cons[i].weight = sqrt(params_recon.cons[i].weight);
-    }
+    ColorStream(ColorOutput::Green) << "Iteration " << iters << " finished.";
   }
 
   cout << "Reconstruction done." << endl;
@@ -212,7 +233,7 @@ bool SingleImageReconstructor<Constraint>::Reconstruct()
 
 template <typename Constraint>
 double SingleImageReconstructor<Constraint>::ComputeError() {
-  boost::timer::auto_cpu_timer timer_all("Error computation time = %w seconds.\n");
+  boost::timer::auto_cpu_timer timer_all("[Error computation] Error computation time = %w seconds.\n");
 
   // Create view matrix
   auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1], params_model.R[2]);
@@ -222,8 +243,8 @@ double SingleImageReconstructor<Constraint>::ComputeError() {
 
   double E = 0;
   for (int i = 0; i < indices.size(); ++i) {
-    auto model_i = model.project(vector<int>(1, indices[i]));
-    model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+    auto& model_i = model_projected[i];
+    //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
     auto tm = model_i.GetTM();
     glm::dvec3 p(tm[0], tm[1], tm[2]);
     auto q = ProjectPoint(p, Mview, params_cam);
@@ -237,17 +258,17 @@ double SingleImageReconstructor<Constraint>::ComputeError() {
 
 template <typename Constraint>
 void SingleImageReconstructor<Constraint>::OptimizeForPosition() {
-  boost::timer::auto_cpu_timer timer_all("Position optimization time = %w seconds.\n");
+  boost::timer::auto_cpu_timer timer_all("[Position optimization] Total time = %w seconds.\n");
 
   ceres::Problem problem;
   vector<double> params{params_model.T[0], params_model.T[1], params_model.T[2]};
 
   {
-    boost::timer::auto_cpu_timer timer_construction("Problem construction time = %w seconds.\n");
+    boost::timer::auto_cpu_timer timer_construction("[Position optimization] Problem construction time = %w seconds.\n");
 
     for (int i = 0; i < indices.size(); ++i) {
-      auto model_i = model.project(vector<int>(1, indices[i]));
-      model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+      auto& model_i = model_projected[i];
+      //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
       ceres::CostFunction *cost_function =
         new ceres::NumericDiffCostFunction<PositionCostFunction, ceres::CENTRAL, 1, 3>(
           new PositionCostFunction(model_i,
@@ -258,16 +279,14 @@ void SingleImageReconstructor<Constraint>::OptimizeForPosition() {
   }
 
   {
+    boost::timer::auto_cpu_timer timer_solve(
+      "[Position optimization] Problem solve time = %w seconds.\n");
+
     ceres::Solver::Options options;
     options.max_num_iterations = 30;
     DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
     ceres::Solver::Summary summary;
-
-
-    boost::timer::auto_cpu_timer timer_solve(
-      "Problem solve time = %w seconds.\n");
     Solve(options, &problem, &summary);
-
     DEBUG_OUTPUT(summary.BriefReport());
   }
 
@@ -289,8 +308,8 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose(int max_iters) {
   {
     boost::timer::auto_cpu_timer timer_construction("[Pose optimization] Problem construction time = %w seconds.\n");
     for (int i = 0; i < indices.size(); ++i) {
-      auto model_i = model.project(vector<int>(1, indices[i]));
-      model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+      auto& model_i = model_projected[i];
+      //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
       ceres::CostFunction *cost_function =
         new ceres::NumericDiffCostFunction<PoseCostFunction, ceres::CENTRAL, 1, 6>(
           new PoseCostFunction(model_i,
@@ -301,6 +320,9 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose(int max_iters) {
   }
 
   {
+    boost::timer::auto_cpu_timer timer_solve(
+      "[Pose optimization] Problem solve time = %w seconds.\n");
+
     ceres::Solver::Options options;
     options.max_num_iterations = max_iters;
     options.minimizer_type = ceres::LINE_SEARCH;
@@ -308,11 +330,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose(int max_iters) {
     DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
     ceres::Solver::Summary summary;
 
-    boost::timer::auto_cpu_timer timer_solve(
-      "[Pose optimization] Problem solve time = %w seconds.\n");
     Solve(options, &problem, &summary);
-
-
     DEBUG_OUTPUT(summary.BriefReport())
   }
 
@@ -347,7 +365,8 @@ void SingleImageReconstructor<Constraint>::OptimizeForFocalLength() {
   double numer = 0.0, denom = 0.0;
   const double sx = params_cam.image_size.x, sy = params_cam.image_size.y;
   for (int i = 0; i < indices.size(); ++i) {
-    auto model_i = model.project(vector<int>(1, indices[i]));
+    auto& model_i = model_projected[i];
+    // Must apply weights here because the weights are just updated
     model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
 
     auto tm = model_i.GetTM();
@@ -367,7 +386,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForFocalLength() {
     denom += sy * (x_z * x_z + y_z * y_z);
   }
   double new_f = numer / denom;
-  cout << "focal length: " << params_cam.focal_length << " -> " << new_f << endl;
+  DEBUG_OUTPUT("focal length: " << params_cam.focal_length << " -> " << new_f)
   params_cam.focal_length = new_f;
 }
 
@@ -392,8 +411,8 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression(int iteration) 
   {
     boost::timer::auto_cpu_timer timer_construction("[Expression optimization] Problem construction time = %w seconds.\n");
     for (int i = 0; i < indices.size(); ++i) {
-      auto model_i = model.project(vector<int>(1, indices[i]));
-      model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+      auto& model_i = model_projected[i];
+      //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
       ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction> *cost_function =
         new ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction>(
           new ExpressionCostFunction(model_i,
@@ -460,8 +479,8 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(int iterat
   {
     boost::timer::auto_cpu_timer timer_construction("[Expression optimization] Problem construction time = %w seconds.\n");
     for(int i=0;i<indices.size();++i) {
-      auto model_i = model.project(vector<int>(1, indices[i]));
-      model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+      auto& model_i = model_projected[i];
+      //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
       ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction_FACS> *cost_function =
         new ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction_FACS>(
           new ExpressionCostFunction_FACS(model_i,
@@ -498,10 +517,12 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(int iterat
     Solve(options, &problem, &summary);
     DEBUG_OUTPUT(summary.BriefReport())
 
-    options.max_num_iterations = iteration * 5;
-    options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
-    Solve(options, &problem, &summary);
-    DEBUG_OUTPUT(summary.BriefReport())
+    if( need_precise_result ) {
+      options.max_num_iterations = iteration * 5;
+      options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
+      Solve(options, &problem, &summary);
+      DEBUG_OUTPUT(summary.BriefReport())
+    }
   }
 
   // Update the model parameters
@@ -533,8 +554,8 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
   {
     boost::timer::auto_cpu_timer timer_construction("[Identity optimization] Problem construction time = %w seconds.\n");
     for (int i = 0; i < indices.size(); ++i) {
-      auto model_i = model.project(vector<int>(1, indices[i]));
-      model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+      auto& model_i = model_projected[i];
+      //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
       ceres::DynamicNumericDiffCostFunction<IdentityCostFunction> *cost_function =
         new ceres::DynamicNumericDiffCostFunction<IdentityCostFunction>(
           new IdentityCostFunction(model_i,
@@ -568,10 +589,12 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
     Solve(options, &problem, &summary);
     DEBUG_OUTPUT(summary.BriefReport())
 
-    options.max_num_iterations = iteration * 5;
-    options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
-    Solve(options, &problem, &summary);
-    DEBUG_OUTPUT(summary.BriefReport())
+    if( need_precise_result ) {
+      options.max_num_iterations = iteration * 5;
+      options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
+      Solve(options, &problem, &summary);
+      DEBUG_OUTPUT(summary.BriefReport())
+    }
   }
 
   // Update the model parameters
@@ -582,7 +605,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
 
 template <typename Constraint>
 void SingleImageReconstructor<Constraint>::UpdateContourIndices() {
-  boost::timer::auto_cpu_timer timer("Contour vertices update time = %w seconds.\n");
+  boost::timer::auto_cpu_timer timer("[Contour update] Contour vertices update time = %w seconds.\n");
   // Create view matrix
   auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1], params_model.R[2]);
   glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
@@ -713,6 +736,8 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices() {
       //cout << i << ": " << indices[i] << " -> " << candidates[min_iter - dists.begin()].first << endl;
       indices[i] = (*candidates)[min_iter - dists.begin()].first;
       params_recon.cons[i].vidx = (*candidates)[min_iter - dists.begin()].first;
+      model_projected[i] = model.project(vector<int>(1, indices[i]));
+      model_projected[i].ApplyWeights(params_model.Wid, params_model.Wexp);
     }
   }
 }

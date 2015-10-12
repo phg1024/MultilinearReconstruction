@@ -55,7 +55,7 @@ bool BasicMesh::LoadOBJMesh(const string& filename) {
 }
 
 void BasicMesh::ComputeNormals() {
-  boost::timer::auto_cpu_timer timer("Normals computation time = %w seconds.\n");
+  boost::timer::auto_cpu_timer timer("[BasicMesh] Normals computation time = %w seconds.\n");
 
   norms.resize(faces.rows(), 3);
   vertex_norms.resize(verts.size(), 3);
@@ -102,7 +102,7 @@ void BasicMesh::ComputeNormals() {
 }
 
 void BasicMesh::UpdateVertices(const VectorXd &vertices) {
-  boost::timer::auto_cpu_timer timer("Vertices update time = %w seconds.\n");
+  boost::timer::auto_cpu_timer timer("[BasicMesh] Vertices update time = %w seconds.\n");
   const int num_vertices = NumVertices();
 #pragma omp parallel for
   for(int i=0;i<num_vertices;++i) {
