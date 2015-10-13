@@ -157,6 +157,9 @@ public:
   const double* rawptr() const { return data.data(); }
   double* rawptr() { return data.data(); }
 
+  const MatrixXd& GetData() const { return data; }
+  MatrixXd& GetData() { return data; }
+
   friend Tensor2 operator+(const Tensor2& a, const Tensor2& b);
   friend Tensor2 operator-(const Tensor2& a, const Tensor2& b);
   friend bool operator==(const Tensor2& a, const Tensor2& b);

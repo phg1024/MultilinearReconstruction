@@ -21,6 +21,9 @@ public:
   const Tensor1& GetTM() const {
     return tm;
   }
+
+  const Tensor2& GetTM0() const { return tm0; }
+  const Tensor2& GetTM1() const { return tm1; }
 private:
   void UnfoldCoreTensor();
 

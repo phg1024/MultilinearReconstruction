@@ -146,4 +146,3 @@ struct LazyProgrammerException{};
 typedef ExceptionBase<LazyProgrammerException> lazy_exception;
 
 #endif // UTILS_H
-

@@ -490,6 +490,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(int iterat
     for(int i=0;i<indices.size();++i) {
       auto& model_i = model_projected[i];
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+#if 0
       ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction_FACS> *cost_function =
         new ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction_FACS>(
           new ExpressionCostFunction_FACS(model_i,
@@ -500,6 +501,9 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(int iterat
                                           params_cam));
       cost_function->AddParameterBlock(params.size());
       cost_function->SetNumResiduals(1);
+#else
+      ceres::CostFunction* cost_function = new ExpressionCostFunction_FACS_analytic(model_i, params_recon.cons[i], params.size(), Mview, Rmat, prior.Uexp, params_cam);
+#endif
       problem.AddResidualBlock(cost_function, NULL, params.data());
     }
 
@@ -547,7 +551,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
   boost::timer::auto_cpu_timer timer_all("[Identity optimization] Total time = %w seconds.\n");
 
   // Create view matrix
-  auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1], params_model.R[2]);
+  glm::dmat4 Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1], params_model.R[2]);
   glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
                                    glm::dvec3(params_model.T[0], params_model.T[1], params_model.T[2]));
   glm::dmat4 Mview = Tmat * Rmat;
@@ -564,16 +568,20 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
     boost::timer::auto_cpu_timer timer_construction("[Identity optimization] Problem construction time = %w seconds.\n");
     for (int i = 0; i < indices.size(); ++i) {
       auto& model_i = model_projected[i];
+
+#if 0
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
       ceres::DynamicNumericDiffCostFunction<IdentityCostFunction> *cost_function =
         new ceres::DynamicNumericDiffCostFunction<IdentityCostFunction>(
-          new IdentityCostFunction(model_i,
-                                   params_recon.cons[i],
-                                   params.size(),
-                                   Mview,
-                                   params_cam));
+          new IdentityCostFunction(model_i, params_recon.cons[i], params.size(),
+                                   Mview, params_cam));
+
       cost_function->AddParameterBlock(params.size());
       cost_function->SetNumResiduals(1);
+#else
+      ceres::CostFunction *cost_function = new IdentityCostFunction_analytic(
+        model_i, params_recon.cons[i], params.size(), Mview, Rmat, params_cam);
+#endif
       problem.AddResidualBlock(cost_function, NULL, params.data());
     }
 
@@ -596,13 +604,13 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
     DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
     ceres::Solver::Summary summary;
     Solve(options, &problem, &summary);
-    DEBUG_OUTPUT(summary.BriefReport())
+    DEBUG_OUTPUT(summary.FullReport())
 
     if( need_precise_result ) {
       options.max_num_iterations = iteration * 5;
       options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
       Solve(options, &problem, &summary);
-      DEBUG_OUTPUT(summary.BriefReport())
+      DEBUG_OUTPUT(summary.FullReport())
     }
   }
 
@@ -751,4 +759,3 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices() {
   }
 }
 #endif // MULTILINEARRECONSTRUCTOR_HPP
-
