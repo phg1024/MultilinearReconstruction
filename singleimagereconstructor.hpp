@@ -25,19 +25,21 @@ using namespace Eigen;
 
 #include "boost/timer/timer.hpp"
 
+#define USE_ANALYTIC_COST_FUNCTIONS 1
+
 template<typename Constraint>
 class SingleImageReconstructor {
 public:
-  SingleImageReconstructor() { }
+  SingleImageReconstructor() : need_precise_result(false) { }
 
-  void LoadModel(const string &filename);
+  void LoadModel(const string &filename) { model = MultilinearModel(filename); }
 
-  void LoadPriors(const string &filename_id, const string &filename_exp);
+  void LoadPriors(const string &filename_id, const string &filename_exp) {
+    prior.load(filename_id, filename_exp);
+  }
 
   void SetContourIndices(
     const vector<vector<int>> &contour_points) { contour_indices = contour_points; }
-
-  void SetIndices(const vector<int> &indices_vec) { indices = indices_vec; }
 
   void SetConstraints(
     const vector<Constraint> &cons) { params_recon.cons = cons; }
@@ -57,6 +59,10 @@ public:
 
   bool Reconstruct();
 
+  const ModelParameters &GetModelParameters() const { return params_model; }
+
+  void SetModelParameters(const ModelParameters& params) { params_model = params; }
+
   const Vector3d &GetRotation() const { return params_model.R; }
 
   const Vector3d &GetTranslation() const { return params_model.T; }
@@ -67,9 +73,13 @@ public:
 
   const Tensor1 &GetGeometry() const { return model.GetTM(); }
 
-  const CameraParameters GetCameraParameters() const { return params_cam; }
+  const CameraParameters &GetCameraParameters() const { return params_cam; }
+
+  void SetCameraParameters(const CameraParameters& params) { params_cam = params; }
 
   const vector<int> GetIndices() const { return indices; }
+
+  void SetIndices(const vector<int> &indices_vec) { indices = indices_vec; }
 
   vector<int> GetUpdatedIndices() const {
     vector<int> idxs;
@@ -113,24 +123,14 @@ private:
 };
 
 template<typename Constraint>
-void SingleImageReconstructor<Constraint>::LoadModel(const string &filename) {
-  model = MultilinearModel(filename);
-}
-
-template<typename Constraint>
-void SingleImageReconstructor<Constraint>::LoadPriors(const string &filename_id,
-                                                      const string &filename_exp) {
-  prior.load(filename_id, filename_exp);
-}
-
-template<typename Constraint>
 bool SingleImageReconstructor<Constraint>::Reconstruct() {
   // Initialize parameters
   cout << "Reconstruction begins." << endl;
 
   const int num_contour_points = 15;
 
-  // Initialization
+  // TODO Move initialization to a separate function.
+  // Initialization camera parameters, model parameters and projected models
   {
     boost::timer::auto_cpu_timer timer(
       "Parameters initialization time = %w seconds.\n");
@@ -181,7 +181,8 @@ bool SingleImageReconstructor<Constraint>::Reconstruct() {
   }
 
   // Reconstruction begins
-  need_precise_result = false;
+
+  // Optimization parameters
   const int kMaxIterations = need_precise_result ? 8 : 4;
   const double init_weights = 1.0;
   prior.weight_Wid = 1.0;
@@ -298,17 +299,17 @@ void SingleImageReconstructor<Constraint>::OptimizeForPosition() {
     for (int i = 0; i < indices.size(); ++i) {
       auto &model_i = model_projected[i];
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
-#if 0
+#if USE_ANALYTIC_COST_FUNCTIONS
+      ceres::CostFunction *cost_function = new PositionCostFunction_analytic(
+        model_i,
+        params_recon.cons[i],
+        params_cam);
+#else
       ceres::CostFunction *cost_function =
         new ceres::NumericDiffCostFunction<PositionCostFunction, ceres::CENTRAL, 1, 3>(
           new PositionCostFunction(model_i,
                                    params_recon.cons[i],
                                    params_cam));
-#else
-      ceres::CostFunction *cost_function = new PositionCostFunction_analytic(
-        model_i,
-        params_recon.cons[i],
-        params_cam);
 #endif
       problem.AddResidualBlock(cost_function, NULL, params.data());
     }
@@ -350,19 +351,19 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose(int max_iters) {
     for (int i = 0; i < indices.size(); ++i) {
       auto &model_i = model_projected[i];
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
-#if 0
+#if USE_ANALYTIC_COST_FUNCTIONS
+      ceres::CostFunction *cost_function =
+        new PoseCostFunction_analytic(model_i, params_recon.cons[i],
+                                      params_cam);
+      problem.AddResidualBlock(cost_function, NULL, params.data(),
+                               params.data() + 3);
+#else
       ceres::CostFunction *cost_function =
         new ceres::NumericDiffCostFunction<PoseCostFunction, ceres::CENTRAL, 1, 6>(
           new PoseCostFunction(model_i,
                                params_recon.cons[i],
                                params_cam));
       problem.AddResidualBlock(cost_function, NULL, params.data());
-#else
-      ceres::CostFunction *cost_function =
-        new PoseCostFunction_analytic(model_i, params_recon.cons[i],
-                                      params_cam);
-      problem.AddResidualBlock(cost_function, NULL, params.data(),
-                               params.data() + 3);
 #endif
     }
   }
@@ -547,7 +548,11 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
     for (int i = 0; i < indices.size(); ++i) {
       auto &model_i = model_projected[i];
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
-#if 0
+#if USE_ANALYTIC_COST_FUNCTIONS
+      ceres::CostFunction *cost_function = new ExpressionCostFunction_FACS_analytic(
+        model_i, params_recon.cons[i], params.size(), Mview, Rmat, prior.Uexp,
+        params_cam);
+#else
       ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction_FACS> *cost_function =
         new ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction_FACS>(
           new ExpressionCostFunction_FACS(model_i,
@@ -558,10 +563,6 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
                                           params_cam));
       cost_function->AddParameterBlock(params.size());
       cost_function->SetNumResiduals(1);
-#else
-      ceres::CostFunction *cost_function = new ExpressionCostFunction_FACS_analytic(
-        model_i, params_recon.cons[i], params.size(), Mview, Rmat, prior.Uexp,
-        params_cam);
 #endif
       problem.AddResidualBlock(cost_function, NULL, params.data());
     }
@@ -634,9 +635,12 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
       "[Identity optimization] Problem construction time = %w seconds.\n");
     for (int i = 0; i < indices.size(); ++i) {
       auto &model_i = model_projected[i];
-
-#if 0
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+
+#if USE_ANALYTIC_COST_FUNCTIONS
+      ceres::CostFunction *cost_function = new IdentityCostFunction_analytic(
+        model_i, params_recon.cons[i], params.size(), Mview, Rmat, params_cam);
+#else
       ceres::DynamicNumericDiffCostFunction<IdentityCostFunction> *cost_function =
         new ceres::DynamicNumericDiffCostFunction<IdentityCostFunction>(
           new IdentityCostFunction(model_i, params_recon.cons[i], params.size(),
@@ -644,9 +648,6 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
 
       cost_function->AddParameterBlock(params.size());
       cost_function->SetNumResiduals(1);
-#else
-      ceres::CostFunction *cost_function = new IdentityCostFunction_analytic(
-        model_i, params_recon.cons[i], params.size(), Mview, Rmat, params_cam);
 #endif
       problem.AddResidualBlock(cost_function, NULL, params.data());
     }

@@ -168,8 +168,6 @@ struct PoseCostFunction_analytic : public ceres::SizedCostFunction<2, 3, 3> {
     // Now compute Jacobians
     if (jacobians != NULL) {
       if (jacobians[0] != NULL) {
-        // @todo Fill in the computation of Jacobians
-
         glm::dvec4 P = Mview * glm::dvec4(tm[0], tm[1], tm[2], 1.0);
         const double x0 = P.x, y0 = P.y, z0 = P.z;
 
@@ -294,7 +292,6 @@ struct PositionCostFunction_analytic : public ceres::SizedCostFunction<2, 3> {
     // Now compute Jacobians
     if (jacobians != NULL) {
       assert(jacobians[0] != NULL);
-      // @todo Fill in the computation of Jacobians
 
       glm::dvec4 P = Mview * glm::dvec4(tm[0], tm[1], tm[2], 1.0);
       const double x0 = P.x, y0 = P.y, z0 = P.z;

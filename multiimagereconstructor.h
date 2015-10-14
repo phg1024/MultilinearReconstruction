@@ -97,7 +97,7 @@ private:
 
 template <typename Constraint>
 bool MultiImageReconstructor<Constraint>::Reconstruct() {
-  // @todo Work on this function.
+  // TODO Work on this function.
 
   // Initialize the parameter sets
   for(auto& params : param_sets) {
