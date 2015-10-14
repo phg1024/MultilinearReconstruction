@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Multilinearreconstruction by phg1024</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/github-light.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1>Multilinearreconstruction</h1>
+        <p>Refactored multilinear reconstruction code.</p>
+
+        <p class="view"><a href="https://github.com/phg1024/MultilinearReconstruction">View the Project on GitHub <small>phg1024/MultilinearReconstruction</small></a></p>
+
+
+        <ul>
+          <li><a href="https://github.com/phg1024/MultilinearReconstruction/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/phg1024/MultilinearReconstruction/tarball/master">Download <strong>TAR Ball</strong></a></li>
+          <li><a href="https://github.com/phg1024/MultilinearReconstruction">View On <strong>GitHub</strong></a></li>
+        </ul>
+      </header>
+      <section>
+        <h2>
+<a id="multilinear-reconstruction" class="anchor" href="#multilinear-reconstruction" aria-hidden="true"><span class="octicon octicon-link"></span></a>Multilinear Reconstruction</h2>
+
+<h3>
+<a id="bilinear-face-model" class="anchor" href="#bilinear-face-model" aria-hidden="true"><span class="octicon octicon-link"></span></a>Bilinear Face Model</h3>
+
+<p>A bilinear face model can be represented with a order 3  tensor $\mathcal C$. This bilinear model can be used to generate new face meshes given identity weights $\mathbf w_{id}$ and expression weights $\mathbf w_{exp}$:
+[\mathcal T = \mathcal C \times_{id} \mathbf w_{id} \times_{exp} \mathbf w_{exp}]</p>
+
+<h3>
+<a id="single-image-reconstruction" class="anchor" href="#single-image-reconstruction" aria-hidden="true"><span class="octicon octicon-link"></span></a>Single Image Reconstruction</h3>
+
+<p>A set of 2D facial landmarks is generated from bilinear face model $\mathcal C$ with proper identity weights $\mathbf w_{id}$, expression weights $\mathbf w_{exp}$, rigid transformation ${\mathbf R, \mathbf t}$ and camera projection matrix $\mathbf M_{proj}$:</p>
+
+<p>[ \mathbf L = \mathbf M_{proj}\left[\mathbf R \Pi(\mathcal C\times_{id} \mathbf w_{id} \times_{exp} \mathbf w_{exp}) + \mathbf t\right] ]
+where $\mathbf L$ is a $n\times2$ matrix of 2D landmarks, and $\Pi$ is a vertex selector for the 3D face mesh.</p>
+
+<p>The goal reconstruction is to recover all unknown parameters ($\mathbf w_{id}$, $\mathbf w_{exp}$, $\mathbf R$, $\mathbf t$, $\mathbf M_{proj}$) from input landmarks.</p>
+
+<h3>
+<a id="multiple-images-reconstruction" class="anchor" href="#multiple-images-reconstruction" aria-hidden="true"><span class="octicon octicon-link"></span></a>Multiple Images Reconstruction</h3>
+
+<p>In case multiple images of the same person are available, the reconstruction makes use all images simultaneously to compute best estimation of the unknown parameters. By utilizing the constraint of identity weights, the reconstruction is expected to generate more accurate estimations.</p>
+
+<h3>
+<a id="authors-and-contributors" class="anchor" href="#authors-and-contributors" aria-hidden="true"><span class="octicon octicon-link"></span></a>Authors and Contributors</h3>
+
+<p>Peihong Guo (<a href="https://github.com/phg1024" class="user-mention">@phg1024</a>)</p>
+      </section>
+      <footer>
+        <p>This project is maintained by <a href="https://github.com/phg1024">phg1024</a></p>
+        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="javascripts/scale.fix.js"></script>
+              <script type="text/javascript">
+            var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+            document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+          </script>
+          <script type="text/javascript">
+            try {
+              var pageTracker = _gat._getTracker("UA-51049436-1");
+            pageTracker._trackPageview();
+            } catch(err) {}
+          </script>
+
+  </body>
+</html>
