@@ -30,7 +30,8 @@ using namespace Eigen;
 template<typename Constraint>
 class SingleImageReconstructor {
 public:
-  SingleImageReconstructor() : need_precise_result(false) { }
+  SingleImageReconstructor()
+    : need_precise_result(false), is_parameters_initialized(false) {}
 
   void LoadModel(const string &filename) { model = MultilinearModel(filename); }
 
@@ -56,6 +57,9 @@ public:
   void SetOptimizationParameters(const OptimizationParameters &params) {
     params_opt = params;
   }
+
+  void SetInitialParameters(const ModelParameters& model_params,
+                            const CameraParameters& camera_params);
 
   bool Reconstruct();
 
@@ -90,6 +94,10 @@ public:
   }
 
 protected:
+  void InitializeParameters();
+
+  void UpdateModels();
+
   void OptimizeForPosition();
 
   void OptimizeForPose(int max_iterations);
@@ -119,8 +127,75 @@ private:
   ModelParameters params_model;
   ReconstructionParameters<Constraint> params_recon;
   OptimizationParameters params_opt;
+
   bool need_precise_result;
+  bool is_parameters_initialized;
 };
+
+template <typename Constraint>
+void SingleImageReconstructor<Constraint>::SetInitialParameters(
+  const ModelParameters& model_params, const CameraParameters& camera_params) {
+  SetModelParameters(model_params);
+  SetCameraParameters(camera_params);
+  UpdateModels();
+  is_parameters_initialized = true;
+}
+
+template <typename Constraint>
+void SingleImageReconstructor<Constraint>::InitializeParameters() {
+  boost::timer::auto_cpu_timer timer(
+    "Parameters initialization time = %w seconds.\n");
+
+  const int num_contour_points = 15;
+
+  // Initialization camera parameters, model parameters and projected models
+
+  // Camera parameters
+  // Typical camera fov for 50mm cameras
+  CameraParameters camera_params;
+  camera_params.fovy = 40.0 / 180.0 * 3.1415926;
+  camera_params.far = 100.0;
+  camera_params.focal_length = 1.0 / tan(0.5 * camera_params.fovy);
+  camera_params.image_plane_center = glm::vec2(params_recon.imageWidth * 0.5,
+                                               params_recon.imageHeight * 0.5);
+  camera_params.image_size = glm::vec2(params_recon.imageWidth,
+                                       params_recon.imageHeight);
+
+  // Model parameters
+  ModelParameters model_params;
+  // Make a neutral face
+  model_params.Wexp_FACS.resize(ModelParameters::nFACSDim);
+  model_params.Wexp_FACS(0) = 1.0;
+  for (int i = 1; i < ModelParameters::nFACSDim; ++i)
+    model_params.Wexp_FACS(i) = 0.0;
+  model_params.Wexp = model_params.Wexp_FACS.transpose() * prior.Uexp;
+
+  // Use average identity
+  model_params.Wid = prior.Uid.row(0);
+
+  // No rotation and translation
+  model_params.R = Vector3d(0, 0, 0);
+  model_params.T = Vector3d(0, 0, -1.0);
+
+  SetInitialParameters(model_params, camera_params);
+}
+
+template <typename Constraint>
+void SingleImageReconstructor<Constraint>::UpdateModels() {
+  model.ApplyWeights(params_model.Wid, params_model.Wexp);
+
+  for (int i = 0; i < indices.size(); ++i) {
+    params_recon.cons[i].vidx = indices[i];
+    params_recon.cons[i].weight = 1.0;
+  }
+
+  // Create initial projected models
+  model_projected.resize(params_recon.cons.size());
+  for (int i = 0; i < params_recon.cons.size(); ++i) {
+    model_projected[i] = model.project(vector<int>(1, indices[i]));
+    model_projected[i].ApplyWeights(params_model.Wid, params_model.Wexp);
+  }
+}
 
 template<typename Constraint>
 bool SingleImageReconstructor<Constraint>::Reconstruct() {
@@ -129,58 +204,12 @@ bool SingleImageReconstructor<Constraint>::Reconstruct() {
 
   const int num_contour_points = 15;
 
-  // TODO Move initialization to a separate function.
-  // Initialization camera parameters, model parameters and projected models
-  {
-    boost::timer::auto_cpu_timer timer(
-      "Parameters initialization time = %w seconds.\n");
-
-    // Camera parameters
-    // Typical camera fov for 50mm cameras
-    params_cam.fovy = 40.0 / 180.0 * 3.1415926;
-    params_cam.far = 100.0;
-    params_cam.focal_length = 1.0 / tan(0.5 * params_cam.fovy);
-    params_cam.image_plane_center = glm::vec2(params_recon.imageWidth * 0.5,
-                                              params_recon.imageHeight * 0.5);
-    params_cam.image_size = glm::vec2(params_recon.imageWidth,
-                                      params_recon.imageHeight);
-
-    // Model parameters
-
-    // Make a neutral face
-    params_model.Wexp_FACS.resize(ModelParameters::nFACSDim);
-    params_model.Wexp_FACS(0) = 1.0;
-    for (int i = 1; i < ModelParameters::nFACSDim; ++i)
-      params_model.Wexp_FACS(i) = 0.0;
-    params_model.Wexp = params_model.Wexp_FACS.transpose() * prior.Uexp;
-
-    // Use average identity
-    params_model.Wid = prior.Uid.row(0);
-
-    // No rotation and translation
-    params_model.R = Vector3d(0, 0, 0);
-    params_model.T = Vector3d(0, 0, -1.0);
-
-    model.ApplyWeights(params_model.Wid, params_model.Wexp);
-
-    for (int i = 0; i < indices.size(); ++i) {
-      params_recon.cons[i].vidx = indices[i];
-    }
-
-    // Assign lower weights to contour points
-    for (int i = 0; i < num_contour_points; ++i) {
-      params_recon.cons[i].weight = 1.0;
-    }
-
-    // Create initial projected models
-    model_projected.resize(params_recon.cons.size());
-    for (int i = 0; i < params_recon.cons.size(); ++i) {
-      model_projected[i] = model.project(vector<int>(1, indices[i]));
-      model_projected[i].ApplyWeights(params_model.Wid, params_model.Wexp);
-    }
+  // Reconstruction begins
+  if (!is_parameters_initialized) {
+    InitializeParameters();
   }
 
-  // Reconstruction begins
+  ColorStream(ColorOutput::Red) << "Initial Error = " << ComputeError();
 
   // Optimization parameters
   const int kMaxIterations = need_precise_result ? 8 : 4;

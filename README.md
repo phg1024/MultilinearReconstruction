@@ -1,7 +1,7 @@
 # Multilinear Reconstruction
 
 ## Bilinear Face Model
-A bilinear face model can be represented with a order 3  tensor $\mathcal C$. This bilinear model can be used to generate new face meshes given identity weights $\mathbf w_{id}$ and expression weights $\mathbf w_{exp}$:
+A bilinear face model can be represented with a third order  tensor $\mathcal C$. This bilinear model can be used to generate new face meshes given identity weights $\mathbf w_{id}$ and expression weights $\mathbf w_{exp}$:
 \[\mathcal T = \mathcal C \times_{id} \mathbf w_{id} \times_{exp} \mathbf w_{exp}\]
 
 ## Single Image Reconstruction
