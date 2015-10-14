@@ -25,39 +25,55 @@ using namespace Eigen;
 
 #include "boost/timer/timer.hpp"
 
-template <typename Constraint>
+template<typename Constraint>
 class SingleImageReconstructor {
 public:
-  SingleImageReconstructor(){}
+  SingleImageReconstructor() { }
+
   void LoadModel(const string &filename);
+
   void LoadPriors(const string &filename_id, const string &filename_exp);
-  void SetContourIndices(const vector<vector<int>> &contour_points) { contour_indices = contour_points; }
+
+  void SetContourIndices(
+    const vector<vector<int>> &contour_points) { contour_indices = contour_points; }
 
   void SetIndices(const vector<int> &indices_vec) { indices = indices_vec; }
-  void SetConstraints(const vector<Constraint> &cons) { params_recon.cons = cons; }
+
+  void SetConstraints(
+    const vector<Constraint> &cons) { params_recon.cons = cons; }
+
   void SetImageSize(int w, int h) {
     params_recon.imageWidth = w;
     params_recon.imageHeight = h;
   }
-  void SetMesh(const BasicMesh& mesh_in) {
+
+  void SetMesh(const BasicMesh &mesh_in) {
     mesh = mesh_in;
   }
+
   void SetOptimizationParameters(const OptimizationParameters &params) {
     params_opt = params;
   }
 
   bool Reconstruct();
 
-  const Vector3d& GetRotation() const { return params_model.R; }
-  const Vector3d& GetTranslation() const { return params_model.T; }
-  const VectorXd& GetIdentityWeights() const { return params_model.Wid; }
-  const VectorXd& GetExpressionWeights() const { return params_model.Wexp_FACS; }
-  const Tensor1& GetGeometry() const { return model.GetTM(); }
+  const Vector3d &GetRotation() const { return params_model.R; }
+
+  const Vector3d &GetTranslation() const { return params_model.T; }
+
+  const VectorXd &GetIdentityWeights() const { return params_model.Wid; }
+
+  const VectorXd &GetExpressionWeights() const { return params_model.Wexp_FACS; }
+
+  const Tensor1 &GetGeometry() const { return model.GetTM(); }
+
   const CameraParameters GetCameraParameters() const { return params_cam; }
+
   const vector<int> GetIndices() const { return indices; }
+
   vector<int> GetUpdatedIndices() const {
     vector<int> idxs;
-    for(int i=0;i<params_recon.cons.size();++i) {
+    for (int i = 0; i < params_recon.cons.size(); ++i) {
       idxs.push_back(params_recon.cons[i].vidx);
     }
     return idxs;
@@ -65,12 +81,19 @@ public:
 
 protected:
   void OptimizeForPosition();
+
   void OptimizeForPose(int max_iterations);
+
   void OptimizeForFocalLength();
+
   void OptimizeForExpression(int iteration);
+
   void OptimizeForExpression_FACS(int iteration);
+
   void OptimizeForIdentity(int iteration);
+
   void UpdateContourIndices();
+
   double ComputeError();
 
 private:
@@ -89,21 +112,19 @@ private:
   bool need_precise_result;
 };
 
-template <typename Constraint>
-void SingleImageReconstructor<Constraint>::LoadModel(const string &filename)
-{
+template<typename Constraint>
+void SingleImageReconstructor<Constraint>::LoadModel(const string &filename) {
   model = MultilinearModel(filename);
 }
 
-template <typename Constraint>
-void SingleImageReconstructor<Constraint>::LoadPriors(const string &filename_id, const string &filename_exp)
-{
+template<typename Constraint>
+void SingleImageReconstructor<Constraint>::LoadPriors(const string &filename_id,
+                                                      const string &filename_exp) {
   prior.load(filename_id, filename_exp);
 }
 
-template <typename Constraint>
-bool SingleImageReconstructor<Constraint>::Reconstruct()
-{
+template<typename Constraint>
+bool SingleImageReconstructor<Constraint>::Reconstruct() {
   // Initialize parameters
   cout << "Reconstruction begins." << endl;
 
@@ -153,7 +174,7 @@ bool SingleImageReconstructor<Constraint>::Reconstruct()
 
     // Create initial projected models
     model_projected.resize(params_recon.cons.size());
-    for(int i=0;i<params_recon.cons.size();++i) {
+    for (int i = 0; i < params_recon.cons.size(); ++i) {
       model_projected[i] = model.project(vector<int>(1, indices[i]));
       model_projected[i].ApplyWeights(params_model.Wid, params_model.Wexp);
     }
@@ -161,7 +182,7 @@ bool SingleImageReconstructor<Constraint>::Reconstruct()
 
   // Reconstruction begins
   need_precise_result = false;
-  const int kMaxIterations = need_precise_result?8:4;
+  const int kMaxIterations = need_precise_result ? 8 : 4;
   const double init_weights = 1.0;
   prior.weight_Wid = 1.0;
   const double d_wid = 0.25;
@@ -172,10 +193,11 @@ bool SingleImageReconstructor<Constraint>::Reconstruct()
   // Before entering the main loop, estimate the translation first
   OptimizeForPosition();
 
-  while( iters++ < kMaxIterations ) {
+  while (iters++ < kMaxIterations) {
     ColorStream(ColorOutput::Green) << "Iteration " << iters << " begins.";
     {
-      boost::timer::auto_cpu_timer timer_loop("[Main loop] Iteration time = %w seconds.\n");
+      boost::timer::auto_cpu_timer timer_loop(
+        "[Main loop] Iteration time = %w seconds.\n");
 
       {
         boost::timer::auto_cpu_timer timer(
@@ -231,19 +253,23 @@ bool SingleImageReconstructor<Constraint>::Reconstruct()
   return true;
 }
 
-template <typename Constraint>
+template<typename Constraint>
 double SingleImageReconstructor<Constraint>::ComputeError() {
-  boost::timer::auto_cpu_timer timer_all("[Error computation] Error computation time = %w seconds.\n");
+  boost::timer::auto_cpu_timer timer_all(
+    "[Error computation] Error computation time = %w seconds.\n");
 
   // Create view matrix
-  auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1], params_model.R[2]);
+  auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1],
+                                 params_model.R[2]);
   glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
-                                   glm::dvec3(params_model.T[0], params_model.T[1], params_model.T[2]));
+                                   glm::dvec3(params_model.T[0],
+                                              params_model.T[1],
+                                              params_model.T[2]));
   glm::dmat4 Mview = Tmat * Rmat;
 
   double E = 0;
   for (int i = 0; i < indices.size(); ++i) {
-    auto& model_i = model_projected[i];
+    auto &model_i = model_projected[i];
     //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
     auto tm = model_i.GetTM();
     glm::dvec3 p(tm[0], tm[1], tm[2]);
@@ -256,18 +282,21 @@ double SingleImageReconstructor<Constraint>::ComputeError() {
   return E;
 }
 
-template <typename Constraint>
+template<typename Constraint>
 void SingleImageReconstructor<Constraint>::OptimizeForPosition() {
-  boost::timer::auto_cpu_timer timer_all("[Position optimization] Total time = %w seconds.\n");
+  boost::timer::auto_cpu_timer timer_all(
+    "[Position optimization] Total time = %w seconds.\n");
 
   ceres::Problem problem;
-  vector<double> params{params_model.T[0], params_model.T[1], params_model.T[2]};
+  vector<double> params{params_model.T[0], params_model.T[1],
+                        params_model.T[2]};
 
   {
-    boost::timer::auto_cpu_timer timer_construction("[Position optimization] Problem construction time = %w seconds.\n");
+    boost::timer::auto_cpu_timer timer_construction(
+      "[Position optimization] Problem construction time = %w seconds.\n");
 
     for (int i = 0; i < indices.size(); ++i) {
-      auto& model_i = model_projected[i];
+      auto &model_i = model_projected[i];
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
 #if 0
       ceres::CostFunction *cost_function =
@@ -276,9 +305,10 @@ void SingleImageReconstructor<Constraint>::OptimizeForPosition() {
                                    params_recon.cons[i],
                                    params_cam));
 #else
-      ceres::CostFunction *cost_function = new PositionCostFunction_analytic(model_i,
-                                                                        params_recon.cons[i],
-                                                                        params_cam);
+      ceres::CostFunction *cost_function = new PositionCostFunction_analytic(
+        model_i,
+        params_recon.cons[i],
+        params_cam);
 #endif
       problem.AddResidualBlock(cost_function, NULL, params.data());
     }
@@ -298,23 +328,27 @@ void SingleImageReconstructor<Constraint>::OptimizeForPosition() {
 
   Vector3d newT(params[0], params[1], params[2]);
 
-  DEBUG_OUTPUT("T: " << params_model.T.transpose() << " -> " << newT.transpose());
+  DEBUG_OUTPUT(
+    "T: " << params_model.T.transpose() << " -> " << newT.transpose());
 
   params_model.T = newT;
 }
 
-template <typename Constraint>
+template<typename Constraint>
 void SingleImageReconstructor<Constraint>::OptimizeForPose(int max_iters) {
-  boost::timer::auto_cpu_timer timer_all("[Pose optimization] Total time = %w seconds.\n");
+  boost::timer::auto_cpu_timer timer_all(
+    "[Pose optimization] Total time = %w seconds.\n");
 
   ceres::Problem problem;
   vector<double> params{params_model.R[0], params_model.R[1], params_model.R[2],
-                        params_model.T[0], params_model.T[1], params_model.T[2]};
+                        params_model.T[0], params_model.T[1],
+                        params_model.T[2]};
 
   {
-    boost::timer::auto_cpu_timer timer_construction("[Pose optimization] Problem construction time = %w seconds.\n");
+    boost::timer::auto_cpu_timer timer_construction(
+      "[Pose optimization] Problem construction time = %w seconds.\n");
     for (int i = 0; i < indices.size(); ++i) {
-      auto& model_i = model_projected[i];
+      auto &model_i = model_projected[i];
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
 #if 0
       ceres::CostFunction *cost_function =
@@ -325,8 +359,10 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose(int max_iters) {
       problem.AddResidualBlock(cost_function, NULL, params.data());
 #else
       ceres::CostFunction *cost_function =
-        new PoseCostFunction_analytic(model_i, params_recon.cons[i], params_cam);
-      problem.AddResidualBlock(cost_function, NULL, params.data(), params.data()+3);
+        new PoseCostFunction_analytic(model_i, params_recon.cons[i],
+                                      params_cam);
+      problem.AddResidualBlock(cost_function, NULL, params.data(),
+                               params.data() + 3);
 #endif
     }
   }
@@ -348,20 +384,26 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose(int max_iters) {
 
   Vector3d newR(params[0], params[1], params[2]);
   Vector3d newT(params[3], params[4], params[5]);
-  DEBUG_OUTPUT("R: " << params_model.R.transpose() << " -> " << newR.transpose())
-  DEBUG_OUTPUT("T: " << params_model.T.transpose() << " -> " << newT.transpose())
+  DEBUG_OUTPUT(
+    "R: " << params_model.R.transpose() << " -> " << newR.transpose())
+  DEBUG_OUTPUT(
+    "T: " << params_model.T.transpose() << " -> " << newT.transpose())
   params_model.R = newR;
   params_model.T = newT;
 }
 
-template <typename Constraint>
+template<typename Constraint>
 void SingleImageReconstructor<Constraint>::OptimizeForFocalLength() {
-  boost::timer::auto_cpu_timer timer_all("[Focal length optimization] Total time = %w seconds.\n");
+  boost::timer::auto_cpu_timer timer_all(
+    "[Focal length optimization] Total time = %w seconds.\n");
 
   // Create view matrix
-  auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1], params_model.R[2]);
+  auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1],
+                                 params_model.R[2]);
   glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
-                                   glm::dvec3(params_model.T[0], params_model.T[1], params_model.T[2]));
+                                   glm::dvec3(params_model.T[0],
+                                              params_model.T[1],
+                                              params_model.T[2]));
   glm::dmat4 Mview = Tmat * Rmat;
 
   // Create projection matrix
@@ -377,7 +419,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForFocalLength() {
   double numer = 0.0, denom = 0.0;
   const double sx = params_cam.image_size.x, sy = params_cam.image_size.y;
   for (int i = 0; i < indices.size(); ++i) {
-    auto& model_i = model_projected[i];
+    auto &model_i = model_projected[i];
     // Must apply weights here because the weights are just updated
     model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
 
@@ -399,18 +441,24 @@ void SingleImageReconstructor<Constraint>::OptimizeForFocalLength() {
   params_cam.focal_length = new_f;
 }
 
-template <typename Constraint>
-void SingleImageReconstructor<Constraint>::OptimizeForExpression(int iteration) {
-  boost::timer::auto_cpu_timer timer_all("[Expression optimization] Total time = %w seconds.\n");
+template<typename Constraint>
+void SingleImageReconstructor<Constraint>::OptimizeForExpression(
+  int iteration) {
+  boost::timer::auto_cpu_timer timer_all(
+    "[Expression optimization] Total time = %w seconds.\n");
 
   // Create view matrix
-  auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1], params_model.R[2]);
+  auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1],
+                                 params_model.R[2]);
   glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
-                                   glm::dvec3(params_model.T[0], params_model.T[1], params_model.T[2]));
+                                   glm::dvec3(params_model.T[0],
+                                              params_model.T[1],
+                                              params_model.T[2]));
   glm::dmat4 Mview = Tmat * Rmat;
 
-  double puple_distance = glm::distance(0.5 * (params_recon.cons[28].data + params_recon.cons[30].data),
-                                        0.5 * (params_recon.cons[32].data + params_recon.cons[34].data));
+  double puple_distance = glm::distance(
+    0.5 * (params_recon.cons[28].data + params_recon.cons[30].data),
+    0.5 * (params_recon.cons[32].data + params_recon.cons[34].data));
   double prior_scale = puple_distance / 100.0;
 
   // Define the optimization problem
@@ -418,9 +466,10 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression(int iteration) 
   VectorXd params = params_model.Wexp;
 
   {
-    boost::timer::auto_cpu_timer timer_construction("[Expression optimization] Problem construction time = %w seconds.\n");
+    boost::timer::auto_cpu_timer timer_construction(
+      "[Expression optimization] Problem construction time = %w seconds.\n");
     for (int i = 0; i < indices.size(); ++i) {
-      auto& model_i = model_projected[i];
+      auto &model_i = model_projected[i];
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
       ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction> *cost_function =
         new ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction>(
@@ -445,7 +494,8 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression(int iteration) 
 
   // Solve it
   {
-    boost::timer::auto_cpu_timer timer_solve("[Expression optimization] Problem solve time = %w seconds.\n");
+    boost::timer::auto_cpu_timer timer_solve(
+      "[Expression optimization] Problem solve time = %w seconds.\n");
     ceres::Solver::Options options;
     options.max_num_iterations = iteration * 3;
     options.minimizer_type = ceres::LINE_SEARCH;
@@ -468,17 +518,23 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression(int iteration) 
   params_model.Wexp = params;
 }
 
-template <typename Constraint>
-void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(int iteration) {
-  boost::timer::auto_cpu_timer timer_all("[Expression optimization] Total time = %w seconds.\n");
+template<typename Constraint>
+void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
+  int iteration) {
+  boost::timer::auto_cpu_timer timer_all(
+    "[Expression optimization] Total time = %w seconds.\n");
   // Create view matrix
-  auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1], params_model.R[2]);
+  auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1],
+                                 params_model.R[2]);
   glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
-                                   glm::dvec3(params_model.T[0], params_model.T[1], params_model.T[2]));
+                                   glm::dvec3(params_model.T[0],
+                                              params_model.T[1],
+                                              params_model.T[2]));
   glm::dmat4 Mview = Tmat * Rmat;
 
-  double puple_distance = glm::distance(0.5 * (params_recon.cons[28].data + params_recon.cons[30].data),
-                                        0.5 * (params_recon.cons[32].data + params_recon.cons[34].data));
+  double puple_distance = glm::distance(
+    0.5 * (params_recon.cons[28].data + params_recon.cons[30].data),
+    0.5 * (params_recon.cons[32].data + params_recon.cons[34].data));
   double prior_scale = puple_distance / 100.0;
 
   // Define the optimization problem
@@ -486,9 +542,10 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(int iterat
   VectorXd params = params_model.Wexp_FACS;
 
   {
-    boost::timer::auto_cpu_timer timer_construction("[Expression optimization] Problem construction time = %w seconds.\n");
-    for(int i=0;i<indices.size();++i) {
-      auto& model_i = model_projected[i];
+    boost::timer::auto_cpu_timer timer_construction(
+      "[Expression optimization] Problem construction time = %w seconds.\n");
+    for (int i = 0; i < indices.size(); ++i) {
+      auto &model_i = model_projected[i];
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
 #if 0
       ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction_FACS> *cost_function =
@@ -502,7 +559,9 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(int iterat
       cost_function->AddParameterBlock(params.size());
       cost_function->SetNumResiduals(1);
 #else
-      ceres::CostFunction* cost_function = new ExpressionCostFunction_FACS_analytic(model_i, params_recon.cons[i], params.size(), Mview, Rmat, prior.Uexp, params_cam);
+      ceres::CostFunction *cost_function = new ExpressionCostFunction_FACS_analytic(
+        model_i, params_recon.cons[i], params.size(), Mview, Rmat, prior.Uexp,
+        params_cam);
 #endif
       problem.AddResidualBlock(cost_function, NULL, params.data());
     }
@@ -520,7 +579,8 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(int iterat
 
   // Solve it
   {
-    boost::timer::auto_cpu_timer timer_solve("[Expression optimization] Problem solve time = %w seconds.\n");
+    boost::timer::auto_cpu_timer timer_solve(
+      "[Expression optimization] Problem solve time = %w seconds.\n");
     ceres::Solver::Options options;
     options.max_num_iterations = iteration * 3;
     options.minimizer_type = ceres::LINE_SEARCH;
@@ -530,7 +590,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(int iterat
     Solve(options, &problem, &summary);
     DEBUG_OUTPUT(summary.BriefReport())
 
-    if( need_precise_result ) {
+    if (need_precise_result) {
       options.max_num_iterations = iteration * 5;
       options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
       Solve(options, &problem, &summary);
@@ -546,18 +606,23 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(int iterat
   params_model.Wexp = params_model.Wexp_FACS.transpose() * prior.Uexp;
 }
 
-template <typename Constraint>
+template<typename Constraint>
 void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
-  boost::timer::auto_cpu_timer timer_all("[Identity optimization] Total time = %w seconds.\n");
+  boost::timer::auto_cpu_timer timer_all(
+    "[Identity optimization] Total time = %w seconds.\n");
 
   // Create view matrix
-  glm::dmat4 Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1], params_model.R[2]);
+  glm::dmat4 Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1],
+                                       params_model.R[2]);
   glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
-                                   glm::dvec3(params_model.T[0], params_model.T[1], params_model.T[2]));
+                                   glm::dvec3(params_model.T[0],
+                                              params_model.T[1],
+                                              params_model.T[2]));
   glm::dmat4 Mview = Tmat * Rmat;
 
-  double puple_distance = glm::distance(0.5 * (params_recon.cons[28].data + params_recon.cons[30].data),
-                                        0.5 * (params_recon.cons[32].data + params_recon.cons[34].data));
+  double puple_distance = glm::distance(
+    0.5 * (params_recon.cons[28].data + params_recon.cons[30].data),
+    0.5 * (params_recon.cons[32].data + params_recon.cons[34].data));
   double prior_scale = puple_distance / 100.0;
 
   // Define the optimization problem
@@ -565,9 +630,10 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
   VectorXd params = params_model.Wid;
 
   {
-    boost::timer::auto_cpu_timer timer_construction("[Identity optimization] Problem construction time = %w seconds.\n");
+    boost::timer::auto_cpu_timer timer_construction(
+      "[Identity optimization] Problem construction time = %w seconds.\n");
     for (int i = 0; i < indices.size(); ++i) {
-      auto& model_i = model_projected[i];
+      auto &model_i = model_projected[i];
 
 #if 0
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
@@ -596,7 +662,8 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
 
   // Solve it
   {
-    boost::timer::auto_cpu_timer timer_solve("[Identity optimization] Problem solve time = %w seconds.\n");
+    boost::timer::auto_cpu_timer timer_solve(
+      "[Identity optimization] Problem solve time = %w seconds.\n");
     ceres::Solver::Options options;
     options.max_num_iterations = iteration * 3;
     options.minimizer_type = ceres::LINE_SEARCH;
@@ -606,7 +673,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
     Solve(options, &problem, &summary);
     DEBUG_OUTPUT(summary.FullReport())
 
-    if( need_precise_result ) {
+    if (need_precise_result) {
       options.max_num_iterations = iteration * 5;
       options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
       Solve(options, &problem, &summary);
@@ -620,13 +687,17 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
   params_model.Wid = params;
 }
 
-template <typename Constraint>
+template<typename Constraint>
 void SingleImageReconstructor<Constraint>::UpdateContourIndices() {
-  boost::timer::auto_cpu_timer timer("[Contour update] Contour vertices update time = %w seconds.\n");
+  boost::timer::auto_cpu_timer timer(
+    "[Contour update] Contour vertices update time = %w seconds.\n");
   // Create view matrix
-  auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1], params_model.R[2]);
+  auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1],
+                                 params_model.R[2]);
   glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
-                                   glm::dvec3(params_model.T[0], params_model.T[1], params_model.T[2]));
+                                   glm::dvec3(params_model.T[0],
+                                              params_model.T[1],
+                                              params_model.T[2]));
   glm::dmat4 Mview = Tmat * Rmat;
 
   //0:34
@@ -637,10 +708,10 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices() {
   vector<pair<int, glm::dvec4>> candidates_center;
   vector<pair<int, glm::dvec4>> candidates_right;
 
-  for(int j=0;j<contour_indices.size();++j) {
+  for (int j = 0; j < contour_indices.size(); ++j) {
     vector<double> dot_products(contour_indices[j].size(), 0.0);
     vector<glm::dvec4> contour_vertices(contour_indices[j].size());
-    for(int i=0;i<contour_indices[j].size();++i) {
+    for (int i = 0; i < contour_indices[j].size(); ++i) {
 //      auto model_ji = model.project(vector<int>(1, contour_indices[j][i]));
 //      model_ji.ApplyWeights(params_model.Wid, params_model.Wexp);
 //      auto tm = model_ji.GetTM();
@@ -656,11 +727,13 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices() {
       // Compute the normal for this vertex
       auto n0 = mesh.vertex_normal(contour_indices[j][i]);
       // Normal matrix is transpose(inverse(modelView))
-      glm::dvec4 n = glm::transpose(glm::inverse(Mview)) * glm::dvec4(n0[0], n0[1], n0[2], 1.0);
+      glm::dvec4 n = glm::transpose(glm::inverse(Mview)) *
+                     glm::dvec4(n0[0], n0[1], n0[2], 1.0);
 
       // Compute the dot product of normal and view direction
       dot_products[i] = glm::dot(glm::normalize(glm::dvec3(n.x, n.y, n.z)),
-                                 glm::dvec3(0, 0, 0) - glm::dvec3(p.x, p.y, p.z));
+                                 glm::dvec3(0, 0, 0) -
+                                 glm::dvec3(p.x, p.y, p.z));
 
       dot_products[i] = fabs(dot_products[i]);
     }
@@ -670,10 +743,10 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices() {
     //cout << min_idx << endl;
 
     vector<pair<int, glm::dvec4>> *candidates;
-    if( j < 35 ) {
+    if (j < 35) {
       // left set
       candidates = &candidates_left;
-    } else if ( j >= 40 ) {
+    } else if (j >= 40) {
       // right set
       candidates = &candidates_right;
     } else {
@@ -682,20 +755,20 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices() {
     }
 
     candidates->push_back(make_pair(contour_indices[j][min_idx],
-                                   contour_vertices[min_idx]));
+                                    contour_vertices[min_idx]));
 
 #if 1
-    if ( min_idx > 0 ) {
-      Vector3d v_ji1 = mesh.vertex(contour_indices[j][min_idx-1]);
+    if (min_idx > 0) {
+      Vector3d v_ji1 = mesh.vertex(contour_indices[j][min_idx - 1]);
       glm::dvec4 p1(v_ji1[0], v_ji1[1], v_ji1[2], 1.0);
-      candidates->push_back(make_pair(contour_indices[j][min_idx-1],
-                                     p1));
+      candidates->push_back(make_pair(contour_indices[j][min_idx - 1],
+                                      p1));
     }
-    if ( min_idx < contour_indices[j].size()-1 ) {
-      Vector3d v_ji1 = mesh.vertex(contour_indices[j][min_idx+1]);
+    if (min_idx < contour_indices[j].size() - 1) {
+      Vector3d v_ji1 = mesh.vertex(contour_indices[j][min_idx + 1]);
       glm::dvec4 p1(v_ji1[0], v_ji1[1], v_ji1[2], 1.0);
-      candidates->push_back(make_pair(contour_indices[j][min_idx+1],
-                                     p1));
+      candidates->push_back(make_pair(contour_indices[j][min_idx + 1],
+                                      p1));
     }
 #endif
   }
@@ -724,13 +797,13 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices() {
 
   // Find closest match for each contour point
   const int num_contour_points = 15;
-  for(int i=0;i<num_contour_points;++i) {
-    vector<pair<int, glm::dvec4>>* candidates;
-    vector<glm::dvec3>* projected_points;
-    if( i < 7 ) {
+  for (int i = 0; i < num_contour_points; ++i) {
+    vector<pair<int, glm::dvec4>> *candidates;
+    vector<glm::dvec3> *projected_points;
+    if (i < 7) {
       candidates = &candidates_left;
       projected_points = &projected_points_left;
-    } else if ( i > 8 ) {
+    } else if (i > 8) {
       candidates = &candidates_right;
       projected_points = &projected_points_right;
     } else {
@@ -739,14 +812,14 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices() {
     }
 
     vector<double> dists(candidates->size());
-    for(int j=0;j<candidates->size();++j) {
+    for (int j = 0; j < candidates->size(); ++j) {
       double dx = (*projected_points)[j].x - params_recon.cons[i].data.x;
       double dy = (*projected_points)[j].y - params_recon.cons[i].data.y;
       dists[j] = dx * dx + dy * dy;
     }
     auto min_iter = std::min_element(dists.begin(), dists.end());
     double min_acceptable_dist = 10.0;
-    if( sqrt(*min_iter) > min_acceptable_dist ) {
+    if (sqrt(*min_iter) > min_acceptable_dist) {
       //cout << sqrt(*min_iter) << endl;
       continue;
     } else {
@@ -758,4 +831,5 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices() {
     }
   }
 }
+
 #endif // MULTILINEARRECONSTRUCTOR_HPP
