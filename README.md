@@ -1,4 +1,4 @@
-# Multilinear Reconstruction
+# [Multilinear Reconstruction](http://phg1024.github.io/MultilinearReconstruction)
 
 ## Bilinear Face Model
 A bilinear face model can be represented with a third order  tensor $\mathcal C$. This bilinear model can be used to generate new face meshes given identity weights $\mathbf w_{id}$ and expression weights $\mathbf w_{exp}$:
