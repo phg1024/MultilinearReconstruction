@@ -128,8 +128,8 @@ void MeshVisualizer::paintGL() {
       glCullFace(GL_BACK);
       /// Draw faces
       glColor4d(.75, .75, .75, face_alpha);
-      GLfloat mat_diffuse[] = {0.5, 0.5, 0.5, face_alpha};
-      GLfloat mat_specular[] = {0.25, 0.25, 0.25, face_alpha};
+      GLfloat mat_diffuse[] = {0.5, 0.5, 0.5, static_cast<float>(face_alpha)};
+      GLfloat mat_specular[] = {0.25, 0.25, 0.25, static_cast<float>(face_alpha)};
       GLfloat mat_shininess[] = {75.0};
       glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
       glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, mat_shininess);

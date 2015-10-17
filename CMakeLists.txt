@@ -41,7 +41,8 @@ if (GLEW_FOUND)
 endif()
 
 # Eigen
-include_directories(/usr/include/eigen3)
+set(EIGEN_INCLUDE_DIR /usr/include/eigen3)
+include_directories(${EIGEN_INCLUDE_DIR})
 
 # MKL
 set(MKL_INCLUDE_DIRS "/home/phg/SDKs/intel/composer_xe/include")
