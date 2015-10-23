@@ -41,6 +41,9 @@ struct ModelParameters {
     // Use average identity
     model_params.Wid = Uid.row(0);
 
+    model_params.R = Vector3d(0, 0, 0);
+    model_params.T = Vector3d(0, 0, -1.0);
+    
     return model_params;
   }
 

@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include "constraints.h"
+#include "utils.hpp"
 
 #include "boost/algorithm/string/split.hpp"
 #include "boost/algorithm/string/classification.hpp"
@@ -22,6 +23,7 @@ vector<string> ReadFileByLine(const string &filename) {
 }
 
 vector<int> LoadIndices(const string &filename) {
+  cout << "Reading indices from " << filename << endl;
   vector<string> lines = ReadFileByLine(filename);
   vector<int> indices(lines.size());
   std::transform(lines.begin(), lines.end(), indices.begin(),
@@ -33,6 +35,7 @@ vector<int> LoadIndices(const string &filename) {
 }
 
 vector<vector<int>> LoadContourIndices(const string& filename) {
+  cout << "Reading contour indices from " << filename << endl;
   vector<string> lines = ReadFileByLine(filename);
   vector<vector<int>> contour_indices(lines.size());
   std::transform(lines.begin(), lines.end(), contour_indices.begin(),
@@ -63,7 +66,12 @@ istream& operator>>(istream& is, Constraint2D& c) {
 }
 
 vector<Constraint2D> LoadConstraints(const string& filename) {
+  cout << "Reading constraints from " << filename << endl;
   ifstream fin(filename);
+  if(!fin) {
+    cerr << "Failed to open file " << filename << endl;
+    exit(-1);
+  }
   int num_constraints;
   fin >> num_constraints;
 
@@ -78,6 +86,7 @@ vector<Constraint2D> LoadConstraints(const string& filename) {
     // The coordinates are one-based. Fix them.
     c.data.x -= 1.0;
     c.data.y -= 1.0;
+    DEBUG_EXPR(cout << c.data.x << ',' << c.data.y << endl;)
   });
 
   cout << num_constraints << " constraints expected. "

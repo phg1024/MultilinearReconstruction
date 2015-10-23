@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
   // Create reconstructor and load the common resources
   MultiImageReconstructor<Constraint2D> recon;
   recon.LoadModel(model_filename);
-  recon.LoadPrior(id_prior_filename, exp_prior_filename);
+  recon.LoadPriors(id_prior_filename, exp_prior_filename);
   recon.SetMesh(mesh);
   recon.SetContourIndices(contour_indices);
   recon.SetIndices(landmarks);
@@ -53,10 +53,15 @@ int main(int argc, char *argv[]) {
   for(auto& p : image_points_filenames) {
     fs::path image_filename = settings_filepath.parent_path() / fs::path(p.first);
     fs::path pts_filename = settings_filepath.parent_path() / fs::path(p.second);
-    cout << image_filename << ", " << pts_filename << endl;
+    cout << "[" << image_filename << ", " << pts_filename << "]" << endl;
 
     auto image_points_pair = LoadImageAndPoints(image_filename.string(), pts_filename.string());
     recon.AddImagePointsPair(image_points_pair);
+  }
+
+  {
+    boost::timer::auto_cpu_timer t("Reconstruction finished in %w seconds.\n");
+    recon.Reconstruct();
   }
 
   return a.exec();
