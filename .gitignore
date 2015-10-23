@@ -3,3 +3,5 @@ build/
 .idea/
 eclipse/
 qt-build/
+*.kdev4
+/tags

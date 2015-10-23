@@ -152,26 +152,12 @@ void SingleImageReconstructor<Constraint>::InitializeParameters() {
 
   // Camera parameters
   // Typical camera fov for 50mm cameras
-  CameraParameters camera_params;
-  camera_params.fovy = 40.0 / 180.0 * 3.1415926;
-  camera_params.far = 100.0;
-  camera_params.focal_length = 1.0 / tan(0.5 * camera_params.fovy);
-  camera_params.image_plane_center = glm::vec2(params_recon.imageWidth * 0.5,
-                                               params_recon.imageHeight * 0.5);
-  camera_params.image_size = glm::vec2(params_recon.imageWidth,
-                                       params_recon.imageHeight);
+  CameraParameters camera_params = CameraParameters::DefaultParameters(
+    params_recon.imageWidth, params_recon.imageHeight);
 
   // Model parameters
-  ModelParameters model_params;
-  // Make a neutral face
-  model_params.Wexp_FACS.resize(ModelParameters::nFACSDim);
-  model_params.Wexp_FACS(0) = 1.0;
-  for (int i = 1; i < ModelParameters::nFACSDim; ++i)
-    model_params.Wexp_FACS(i) = 0.0;
-  model_params.Wexp = model_params.Wexp_FACS.transpose() * prior.Uexp;
-
-  // Use average identity
-  model_params.Wid = prior.Uid.row(0);
+  ModelParameters model_params = ModelParameters::DefaultParameters(prior.Uid,
+                                                                    prior.Uexp);
 
   // No rotation and translation
   model_params.R = Vector3d(0, 0, 0);
