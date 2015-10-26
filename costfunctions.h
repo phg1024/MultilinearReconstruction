@@ -767,11 +767,10 @@ struct ExpressionCostFunction_FACS_analytic : public ceres::CostFunction {
       R(2, 1) = Rmat[1][2];
       R(2, 2) = Rmat[2][2];
 
-      MatrixXd D = MatrixXd::Zero(params_length, params_length);
-      D(0, 0) = 1.0;
-      for(int i=1;i<params_length;++i) {
+      MatrixXd D = MatrixXd::Zero(params_length, params_length-1);
+      for(int i=0;i<params_length-1;++i) {
         D(0, i) = -1.0;
-        D(i, i) = 1.0;
+        D(i+1, i) = 1.0;
       }
 
       // tm0 is a ndims_exp x 3 matrix, where each row is x, y, z
@@ -779,7 +778,7 @@ struct ExpressionCostFunction_FACS_analytic : public ceres::CostFunction {
       auto J = (scale_factor * fvec.transpose() * Jh * R * tm0.transpose() *
                 Uexp.transpose() * D).eval();
 
-      for (int i = 0; i < params_length - 1; ++i) jacobians[0][i] = J(0, i+1);
+      for (int i = 0; i < params_length - 1; ++i) jacobians[0][i] = J(0, i);
     }
 
     return true;
