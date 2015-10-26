@@ -616,9 +616,16 @@ struct ExpressionCostFunction_FACS {
       Mview(Mview), Uexp(Uexp), cam_params(cam_params) { }
 
   bool operator()(const double *const *wexp, double *residual) const {
+#if 0
     VectorXd wexp_vec = Map<const VectorXd>(wexp[0], params_length).eval();
+#else
+    VectorXd wexp_vec(params_length);
+    wexp_vec.bottomRows(params_length-1) = Map<const VectorXd>(wexp[0], params_length - 1).eval();
+    wexp_vec[0] = 1.0 - wexp_vec.bottomRows(params_length-1).sum();
+#endif
     VectorXd weights = (wexp_vec.transpose() * Uexp).eval();
 
+    // TODO update the analytic function because it is not changed
     // Apply the weight vector to the model
     model.UpdateTMWithTM0(weights);
 
@@ -652,7 +659,7 @@ struct ExpressionCostFunction_FACS_analytic : public ceres::CostFunction {
     : model(model), constraint(constraint), params_length(params_length),
       Mview(Mview), Rmat(Rmat), Uexp(Uexp), cam_params(cam_params) {
     mutable_parameter_block_sizes()->clear();
-    mutable_parameter_block_sizes()->push_back(params_length);
+    mutable_parameter_block_sizes()->push_back(params_length - 1);
     set_num_residuals(1);
   }
 
@@ -694,7 +701,14 @@ struct ExpressionCostFunction_FACS_analytic : public ceres::CostFunction {
 
   bool Evaluate(const double *const *wexp, double *residuals,
                 double **jacobians) const {
+#if 0
     VectorXd wexp_vec = Map<const VectorXd>(wexp[0], params_length).eval();
+#else
+    VectorXd wexp_vec(params_length);
+    wexp_vec.bottomRows(params_length-1) = Map<const VectorXd>(wexp[0], params_length - 1).eval();
+    wexp_vec[0] = 1.0 - wexp_vec.bottomRows(params_length-1).sum();
+#endif
+
     VectorXd weights = (wexp_vec.transpose() * Uexp).eval();
 
     // Apply the weight vector to the model
@@ -795,10 +809,15 @@ struct ExpressionRegularizationCostFunction {
 
   bool operator()(const double *const *w, double *residual) const {
     const int params_length = 47;
+#if 0
+    VectorXd wexp_vec = Map<const VectorXd>(w[0], params_length).eval();
+#else
+    VectorXd wexp_vec(params_length);
+    wexp_vec.bottomRows(params_length-1) = Map<const VectorXd>(w[0], params_length - 1).eval();
+    wexp_vec[0] = 1.0 - wexp_vec.bottomRows(params_length-1).sum();
+#endif
 
-    VectorXd diff = (
-      Uexp.transpose() * Map<const VectorXd>(w[0], params_length) -
-      prior_vec).eval();
+    VectorXd diff = (Uexp.transpose() * wexp_vec - prior_vec).eval();
 
     // Simply Mahalanobis distance between w and prior_vec
     residual[0] = sqrt(fabs(weight * diff.transpose() * (inv_cov_mat * diff)));

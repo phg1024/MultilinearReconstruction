@@ -555,6 +555,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
 
   // Define the optimization problem
   ceres::Problem problem;
+
   VectorXd params = params_model.Wexp_FACS;
 
   {
@@ -563,7 +564,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
     for (int i = 0; i < indices.size(); ++i) {
       auto &model_i = model_projected[i];
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
-#if USE_ANALYTIC_COST_FUNCTIONS
+#if 0 //USE_ANALYTIC_COST_FUNCTIONS
       ceres::CostFunction *cost_function = new ExpressionCostFunction_FACS_analytic(
         model_i, params_recon.cons[i], params.size(), Mview, Rmat, prior.Uexp,
         params_cam);
@@ -576,10 +577,12 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
                                           Mview,
                                           prior.Uexp,
                                           params_cam));
-      cost_function->AddParameterBlock(params.size());
+      // Optimize the last 46 weights only
+      cost_function->AddParameterBlock(params.size() - 1);
       cost_function->SetNumResiduals(1);
 #endif
-      problem.AddResidualBlock(cost_function, NULL, params.data());
+      // Optimize the last 46 weights only
+      problem.AddResidualBlock(cost_function, NULL, params.data() + 1);
     }
 
     ceres::DynamicNumericDiffCostFunction<ExpressionRegularizationCostFunction> *prior_cost_function =
@@ -588,9 +591,9 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
                                                  prior.inv_sigma_Wexp,
                                                  prior.Uexp, prior.weight_Wexp *
                                                              prior_scale));
-    prior_cost_function->AddParameterBlock(params.size());
+    prior_cost_function->AddParameterBlock(params.size()-1);
     prior_cost_function->SetNumResiduals(1);
-    problem.AddResidualBlock(prior_cost_function, NULL, params.data());
+    problem.AddResidualBlock(prior_cost_function, NULL, params.data()+1);
   }
 
   // Solve it
@@ -619,7 +622,11 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
                << " -> " << endl
                << params.transpose())
   params_model.Wexp_FACS = params;
-  params_model.Wexp = params_model.Wexp_FACS.transpose() * prior.Uexp;
+
+  // Post process the FACS weights
+  VectorXd weights_exp = params;
+  weights_exp[0] = 1.0 - params.bottomRows(46).sum();
+  params_model.Wexp = weights_exp.transpose() * prior.Uexp;
 }
 
 template<typename Constraint>
