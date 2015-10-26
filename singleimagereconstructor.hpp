@@ -564,7 +564,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
     for (int i = 0; i < indices.size(); ++i) {
       auto &model_i = model_projected[i];
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
-#if 0 //USE_ANALYTIC_COST_FUNCTIONS
+#if USE_ANALYTIC_COST_FUNCTIONS
       ceres::CostFunction *cost_function = new ExpressionCostFunction_FACS_analytic(
         model_i, params_recon.cons[i], params.size(), Mview, Rmat, prior.Uexp,
         params_cam);

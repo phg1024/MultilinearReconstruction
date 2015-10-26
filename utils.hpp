@@ -5,6 +5,7 @@
 #include <typeinfo>
 #include <limits>
 
+#define DEBUG_BUILD
 #ifdef DEBUG_BUILD
 #define DEBUG_OUTPUT(x) { cout << x << endl; }
 #define DEBUG_EXPR(x) {x}

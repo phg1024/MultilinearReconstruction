@@ -625,7 +625,6 @@ struct ExpressionCostFunction_FACS {
 #endif
     VectorXd weights = (wexp_vec.transpose() * Uexp).eval();
 
-    // TODO update the analytic function because it is not changed
     // Apply the weight vector to the model
     model.UpdateTMWithTM0(weights);
 
@@ -663,11 +662,19 @@ struct ExpressionCostFunction_FACS_analytic : public ceres::CostFunction {
     set_num_residuals(1);
   }
 
+  // TODO update the reference function
   VectorXd jacobian_ref(double const *const *wexp) const {
-    VectorXd J_ref(params_length);
+    VectorXd J_ref(params_length-1);
     const double epsilon = 1e-12;
-    for (int i = 0; i < params_length; ++i) {
-      VectorXd wexp_vec = Map<const VectorXd>(wexp[0], params_length);
+    for (int i = 1; i < params_length; ++i) {
+      #if 0
+          VectorXd wexp_vec = Map<const VectorXd>(wexp[0], params_length).eval();
+      #else
+          VectorXd wexp_vec(params_length);
+          wexp_vec.bottomRows(params_length-1) = Map<const VectorXd>(wexp[0], params_length - 1).eval();
+          wexp_vec[0] = 1.0 - wexp_vec.bottomRows(params_length-1).sum();
+      #endif
+
       VectorXd wexp_vec_m = wexp_vec, wexp_vec_p = wexp_vec;
       wexp_vec_m[i] -= epsilon * 0.5;
       wexp_vec_p[i] += epsilon * 0.5;
@@ -694,7 +701,7 @@ struct ExpressionCostFunction_FACS_analytic : public ceres::CostFunction {
           l2_norm(glm::dvec2(q.x, q.y), constraint.data) * constraint.weight;
       }
 
-      J_ref[i] = (residual_p - residual_m) / epsilon;
+      J_ref[i-1] = (residual_p - residual_m) / epsilon;
     }
     return J_ref;
   }
@@ -765,7 +772,7 @@ struct ExpressionCostFunction_FACS_analytic : public ceres::CostFunction {
       auto J = (scale_factor * fvec.transpose() * Jh * R * tm0.transpose() *
                 Uexp.transpose()).eval();
 
-      for (int i = 0; i < params_length; ++i) jacobians[0][i] = J(0, i);
+      for (int i = 0; i < params_length - 1; ++i) jacobians[0][i] = J(0, i+1);
     }
 
     return true;
