@@ -13,5 +13,6 @@
 
 using namespace std;
 
-#endif // COMMON_H
+#define DEBUG_BUILD 0
 
+#endif // COMMON_H
