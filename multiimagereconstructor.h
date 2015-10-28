@@ -20,6 +20,7 @@
 #include "multilinearmodel.h"
 #include "parameters.h"
 #include "singleimagereconstructor.hpp"
+#include "statsutils.h"
 #include "utils.hpp"
 
 using namespace Eigen;
@@ -136,6 +137,8 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
   //  2. Select a consistent set of images for joint reconstruction
   //  3. Convergence test. If not converged, goto step 1.
 
+
+
   {
     // Single image reconstruction step
     for(size_t i=0;i<num_images;++i) {
@@ -175,6 +178,13 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
 
     // TODO Parameters estimation step, choose a consistent set of images for joint
     // optimization
+    MatrixXd identity_weights(param_sets[0].model.Wid.rows(), num_images);
+    for(int i=0;i<num_images;++i) {
+      identity_weights.col(i) = param_sets[i].model.Wid;
+    }
+
+    // Remove outliers
+    vector<int> consistent_set = StatsUtils::FindConsistentSet(identity_weights, 0.5);
 
     // TODO Joint reconstruction step, obtain refined identity weights
   } // end of main reconstruction loop
