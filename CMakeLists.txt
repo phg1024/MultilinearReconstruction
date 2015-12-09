@@ -65,6 +65,7 @@ find_package(Qt5OpenGL)
 # Ceres solver
 find_package(Ceres REQUIRED)
 include_directories(${CERES_INCLUDE_DIRS})
+link_libraries(${CERES_LIBRARIES})
 
 # Targets
 add_library(multilinearmodel multilinearmodel.cpp)
@@ -101,9 +102,8 @@ target_link_libraries(SingleImageReconstruction
                       Qt5::Core
                       Qt5::Widgets
                       Qt5::OpenGL
-					  ${MKLLIBS}
-					  ${PhGLib}
-                      ${CERES_LIBRARIES})
+											${MKLLIBS}
+											${PhGLib})
 
 # Multiple image reconstruction program
 add_executable(MultiImageReconstruction multiimagereconstruction.cpp multiimagereconstructor.h singleimagereconstructor.hpp utils.hpp multiimagereconstruction.cpp ioutilities.h)
@@ -116,8 +116,7 @@ target_link_libraries(MultiImageReconstruction
         Qt5::Widgets
         Qt5::OpenGL
         ${MKLLIBS}
-        ${PhGLib}
-        ${CERES_LIBRARIES})
+        ${PhGLib})
 
 # Multilinear model builder
 add_executable(MultilinearModelBuilder multilinearmodelbuilder.cpp)
