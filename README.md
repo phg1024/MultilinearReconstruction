@@ -14,3 +14,6 @@ The goal reconstruction is to recover all unknown parameters ($\mathbf w_{id}$, 
 
 ## Multiple Images Reconstruction
 In case multiple images of the same person are available, the reconstruction makes use all images simultaneously to compute best estimation of the unknown parameters. By utilizing the constraint of identity weights, the reconstruction is expected to generate more accurate estimations.
+
+## Data
+Some relevant data could be downloaded [here](https://goo.gl/sEB9Dk).
