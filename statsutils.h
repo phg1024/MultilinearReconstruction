@@ -65,7 +65,7 @@ static MatrixXd normalize(const MatrixXd& mat) {
 
 static vector<int> FindConsistentSet(const MatrixXd& identity_weights,
                                      double radius) {
-#if 0
+#if 1
   // Compute Pearson's correlation among identity weights
   MatrixXd metric_mat = StatsUtils::corr(identity_weights);
 #else
