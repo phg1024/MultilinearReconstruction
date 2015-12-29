@@ -25,11 +25,17 @@ public:
   Vector3i face(int i) const {
     return faces.row(i);
   }
+  Vector3i face_texture(int i) const {
+    return face_tex_index.row(i);
+  }
   Vector3d normal(int i) const {
     return norms.row(i);
   }
   Vector3d vertex_normal(int i) const {
     return vertex_norms.row(i);
+  }
+  Vector2d texture_coords(int i) const {
+    return texcoords.row(i);
   }
 
   int NumVertices() const { return static_cast<int>(verts.rows()); }
@@ -45,7 +51,9 @@ private:
   unordered_map<int, int> vert_face_map;
 
   MatrixX3d verts;
-  MatrixX3i faces;
+  MatrixX3i faces, face_tex_index;
+  MatrixX2d texcoords;
+
   // Per-face normal vector
   MatrixX3d norms;
   MatrixX3d vertex_norms;

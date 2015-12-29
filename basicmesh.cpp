@@ -26,11 +26,18 @@ bool BasicMesh::LoadOBJMesh(const string& filename) {
   auto V = loader.getVerts();
 
   int nverts = V.size();
-  verts.resize(V.size(), 3);
+  verts.resize(nverts, 3);
   for (int i = 0; i < nverts; ++i) {
     verts(i, 0) = V[i].x;
     verts(i, 1) = V[i].y;
     verts(i, 2) = V[i].z;
+  }
+
+  auto T = loader.getTexcoords();
+  texcoords.resize(T.size(), 2);
+  for(int i=0;i<T.size();++i) {
+    texcoords(i, 0) = T[i].x;
+    texcoords(i, 1) = T[i].y;
   }
 
   int nfaces = 0;
@@ -40,17 +47,19 @@ bool BasicMesh::LoadOBJMesh(const string& filename) {
   }
 
   faces.resize(nfaces, 3);
+  face_tex_index.resize(nfaces, 3);
   vert_face_map.clear();
   // triangulate the mesh
   for (int i = 0, faceidx = 0; i < F.size(); ++i) {
     for (int j = 1; j < F[i].v.size()-1; ++j, ++faceidx) {
       faces.row(faceidx) = Vector3i(F[i].v[0], F[i].v[j], F[i].v[j+1]);
+      face_tex_index.row(faceidx) = Vector3i(F[i].t[0], F[i].t[j], F[i].t[j+1]);
     }
   }
 
   cout << filename << " loaded." << endl;
   cout << nfaces << " faces." << endl;
-  cout << V.size() << " vertices." << endl;
+  cout << nverts << " vertices." << endl;
   return true;
 }
 
