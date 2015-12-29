@@ -19,12 +19,31 @@ struct CameraParameters {
     return CameraParameters(fovy, far, image_width, image_height);
   }
 
+  friend istream& operator>>(istream& is, CameraParameters& params);
+  friend ostream& operator<<(ostream& os, const CameraParameters& params);
+
   double fovy;
   double far;
   double focal_length;
   glm::dvec2 image_plane_center;
   glm::dvec2 image_size;
 };
+
+inline istream& operator>>(istream& is, CameraParameters& params) {
+  is >> params.fovy >> params.far >> params.focal_length
+     >> params.image_plane_center.x >> params.image_plane_center.y
+     >> params.image_size.x >> params.image_size.y;
+  return is;
+}
+
+inline ostream& operator<<(ostream& os, const CameraParameters& params) {
+  os << params.fovy << endl;
+  os << params.far << endl;
+  os << params.focal_length << endl;
+  os << params.image_plane_center.x << ' ' << params.image_plane_center.y << endl;
+  os << params.image_size.x << ' ' << params.image_size.y;
+  return os;
+}
 
 struct ModelParameters {
   static ModelParameters DefaultParameters(const MatrixXd& Uid,
@@ -47,12 +66,49 @@ struct ModelParameters {
     return model_params;
   }
 
+  friend istream& operator>>(istream& is, ModelParameters& params);
+  friend ostream& operator<<(ostream& os, const ModelParameters& params);
+
   static const int nFACSDim = 47;
   VectorXd Wid;               // identity weights
   VectorXd Wexp, Wexp_FACS;   // expression weights
   Vector3d R;              // rotation
   Vector3d T;                 // translation
 };
+
+namespace {
+  void write_vector(ostream& os, const VectorXd& v) {
+    os << v.rows() << ' ';
+    for(int i=0;i<v.rows();++i) {
+      os << v(i) << ' ';
+    }
+    os << endl;
+  }
+  void read_vector(istream& is, VectorXd& v) {
+    int nrows;
+    is >> nrows;
+    v.resize(nrows, 1);
+    for(int i=0;i<nrows;++i) is >> v(i);
+  }
+}
+
+inline istream& operator>>(istream& is, ModelParameters& params) {
+  read_vector(is, params.Wid);
+  read_vector(is, params.Wexp);
+  read_vector(is, params.Wexp_FACS);
+  is >> params.R(0) >> params.R(1) >> params.R(2);
+  is >> params.T(0) >> params.T(1) >> params.T(2);
+  return is;
+}
+
+inline ostream& operator<<(ostream& os, const ModelParameters& params) {
+  write_vector(os, params.Wid);
+  write_vector(os, params.Wexp);
+  write_vector(os, params.Wexp_FACS);
+  os << params.R(0) << ' ' << params.R(1) << ' ' << params.R(2) << endl;
+  os << params.T(0) << ' ' << params.T(1) << ' ' << params.T(2);
+  return os;
+}
 
 template <typename Constraint>
 struct ReconstructionParameters {

@@ -93,6 +93,13 @@ public:
     return idxs;
   }
 
+  void SaveReconstructionResults(const string& filename) const {
+    ofstream fout(filename);
+    fout << params_cam << endl;
+    fout << params_model << endl;
+    fout.close();
+  }
+
 protected:
   void InitializeParameters();
 

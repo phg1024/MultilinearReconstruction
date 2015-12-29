@@ -74,5 +74,9 @@ int main(int argc, char *argv[])
   w.resize(img.width(), img.height());
   w.show();
 
+  // Save the reconstruction results
+  // w_id, w_exp, rotation, translation, camera parameters
+  recon.SaveReconstructionResults(image_filename + ".res");
+
   return a.exec();
 }
