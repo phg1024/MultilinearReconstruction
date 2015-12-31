@@ -1,6 +1,7 @@
 #ifndef MULTILINEARRECONSTRUCTION_PARAMETERS_H
 #define MULTILINEARRECONSTRUCTION_PARAMETERS_H
 
+#include "glm/glm.hpp"
 #include "mathutils.hpp"
 
 struct CameraParameters {
