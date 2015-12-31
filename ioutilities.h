@@ -7,6 +7,7 @@
 
 #include "boost/algorithm/string/split.hpp"
 #include "boost/algorithm/string/classification.hpp"
+#include "parameters.h"
 
 #include <QImage>
 
@@ -133,6 +134,18 @@ vector<pair<string, string>> ParseSettingsFile(const string &filename) {
                    return make_pair(parts.front(), parts.back());
                  });
   return image_points_filenames;
+}
+
+ReconstructionResult LoadReconstructionResult(const string &filename) {
+  ReconstructionResult result;
+  ifstream fin(filename);
+  if(!fin) {
+    cerr << "Failed to load reconstruction result from " << filename << endl;
+    exit(-1);
+  }
+  fin >> result.params_cam >> result.params_model;
+  fin.close();
+  return result;
 }
 
 #endif //MULTILINEARRECONSTRUCTION_IOUTILITIES_H

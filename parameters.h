@@ -110,6 +110,11 @@ inline ostream& operator<<(ostream& os, const ModelParameters& params) {
   return os;
 }
 
+struct ReconstructionResult {
+  CameraParameters params_cam;
+  ModelParameters params_model;
+};
+
 template <typename Constraint>
 struct ReconstructionParameters {
   int imageWidth, imageHeight;
