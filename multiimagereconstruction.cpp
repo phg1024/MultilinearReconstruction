@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
     cout << "[" << image_filename << ", " << pts_filename << "]" << endl;
 
     auto image_points_pair = LoadImageAndPoints(image_filename.string(), pts_filename.string());
-    recon.AddImagePointsPair(image_points_pair);
+    recon.AddImagePointsPair(image_filename.string(), image_points_pair);
   }
 
   {

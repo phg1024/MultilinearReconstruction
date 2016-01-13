@@ -412,10 +412,11 @@ struct IdentityCostFunction_analytic : public ceres::CostFunction {
                                 int params_length,
                                 const glm::dmat4 &Mview,
                                 const glm::dmat4 Rmat,
-                                const CameraParameters &cam_params)
+                                const CameraParameters &cam_params,
+                                double weight = 1.0)
     : model(model), constraint(constraint),
       params_length(params_length),
-      Mview(Mview), Rmat(Rmat), cam_params(cam_params) {
+      Mview(Mview), Rmat(Rmat), cam_params(cam_params), weight(weight) {
     mutable_parameter_block_sizes()->clear();
     mutable_parameter_block_sizes()->push_back(params_length);
     set_num_residuals(1);
@@ -471,7 +472,7 @@ struct IdentityCostFunction_analytic : public ceres::CostFunction {
     // Compute residual
     // residuals[0] = dot(p - q, p - q)^0.25;
     residuals[0] =
-      l1_norm(glm::dvec2(q.x, q.y), constraint.data) * constraint.weight;
+      l1_norm(glm::dvec2(q.x, q.y), constraint.data) * constraint.weight * weight;
 
     if (jacobians != NULL) {
       assert(jacobians[0] != NULL);
@@ -516,7 +517,7 @@ struct IdentityCostFunction_analytic : public ceres::CostFunction {
       auto J = (scale_factor * fvec.transpose() * Jh * R *
                 tm1.transpose()).eval();
 
-      for (int i = 0; i < params_length; ++i) jacobians[0][i] = J(0, i);
+      for (int i = 0; i < params_length; ++i) jacobians[0][i] = J(0, i) * weight;
     }
 
     return true;
@@ -528,6 +529,7 @@ struct IdentityCostFunction_analytic : public ceres::CostFunction {
   Constraint2D constraint;
   glm::dmat4 Mview, Rmat;
   CameraParameters cam_params;
+  double weight;
 };
 
 struct ExpressionCostFunction {

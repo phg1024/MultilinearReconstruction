@@ -30,8 +30,16 @@ using namespace Eigen;
 template<typename Constraint>
 class SingleImageReconstructor {
 public:
+  enum OptimizationMode {
+    Pose = 0x1,
+    Identity = 0x2,
+    Expression = 0x4,
+    FocalLength = 0x8,
+    All = 0xf
+  };
+
   SingleImageReconstructor()
-    : need_precise_result(false), is_parameters_initialized(false) {}
+    : opt_mode(All), need_precise_result(false), is_parameters_initialized(false) {}
 
   void LoadModel(const string &filename) { model = MultilinearModel(filename); }
 
@@ -60,6 +68,10 @@ public:
 
   void SetInitialParameters(const ModelParameters& model_params,
                             const CameraParameters& camera_params);
+
+  void SetOptimizationMode(OptimizationMode mode) {
+    opt_mode = mode;
+  }
 
   bool Reconstruct();
 
@@ -134,6 +146,8 @@ private:
   ModelParameters params_model;
   ReconstructionParameters<Constraint> params_recon;
   OptimizationParameters params_opt;
+
+  OptimizationMode opt_mode;
 
   bool need_precise_result;
   bool is_parameters_initialized;
@@ -222,7 +236,7 @@ bool SingleImageReconstructor<Constraint>::Reconstruct() {
       boost::timer::auto_cpu_timer timer_loop(
         "[Main loop] Iteration time = %w seconds.\n");
 
-      {
+      if((opt_mode & (Identity | Expression))){
         boost::timer::auto_cpu_timer timer(
           "[Main loop] Multilinear model weights update time = %w seconds.\n");
         model.ApplyWeights(params_model.Wid, params_model.Wexp);
@@ -230,16 +244,23 @@ bool SingleImageReconstructor<Constraint>::Reconstruct() {
       mesh.UpdateVertices(model.GetTM());
       mesh.ComputeNormals();
 
-      for (int pose_opt_iter = 0; pose_opt_iter < 2; ++pose_opt_iter) {
-        OptimizeForPose(2);
-        UpdateContourIndices();
+      if(opt_mode & Pose) {
+        for (int pose_opt_iter = 0; pose_opt_iter < 2; ++pose_opt_iter) {
+          OptimizeForPose(2);
+          UpdateContourIndices();
+        }
       }
-      //OptimizeForExpression(2);
-      OptimizeForExpression_FACS(2);
 
-      OptimizeForFocalLength();
+      if(opt_mode & Expression) {
+        //OptimizeForExpression(2);
+        OptimizeForExpression_FACS(2);
+      }
 
-      {
+      if(opt_mode & FocalLength) {
+        OptimizeForFocalLength();
+      }
+
+      if(opt_mode & Expression){
         boost::timer::auto_cpu_timer timer(
           "[Main loop] Multilinear model weights update time = %w seconds.\n");
         model.ApplyWeights(params_model.Wid, params_model.Wexp);
@@ -247,13 +268,20 @@ bool SingleImageReconstructor<Constraint>::Reconstruct() {
       mesh.UpdateVertices(model.GetTM());
       mesh.ComputeNormals();
 
-      for (int pose_opt_iter = 0; pose_opt_iter < 2; ++pose_opt_iter) {
-        OptimizeForPose(2);
-        UpdateContourIndices();
+      if(opt_mode & Pose) {
+        for (int pose_opt_iter = 0; pose_opt_iter < 2; ++pose_opt_iter) {
+          OptimizeForPose(2);
+          UpdateContourIndices();
+        }
       }
-      OptimizeForIdentity(2);
 
-      OptimizeForFocalLength();
+      if(opt_mode & Identity) {
+        OptimizeForIdentity(2);
+      }
+
+      if(opt_mode & FocalLength) {
+        OptimizeForFocalLength();
+      }
 
       double E = ComputeError();
 

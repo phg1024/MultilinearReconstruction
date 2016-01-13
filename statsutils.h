@@ -80,7 +80,11 @@ static vector<int> FindConsistentSet(const MatrixXd& identity_weights,
 
   // Find the consistent set using the centroid and radius
 
-  return vector<int>();
+  // @TODO Use the input set for the moment. Need to work on this later.
+  vector<int> consistent_set;
+  for(int i=0;i<identity_weights.cols();++i) consistent_set.push_back(i);
+
+  return consistent_set;
 }
 }
 
