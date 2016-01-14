@@ -23,6 +23,11 @@
 #include "statsutils.h"
 #include "utils.hpp"
 
+#include "boost/filesystem/operations.hpp"
+#include "boost/filesystem/path.hpp"
+
+namespace fs = boost::filesystem;
+
 using namespace Eigen;
 
 template <typename Constraint>
@@ -332,8 +337,17 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
     w->BindUpdatedLandmarks(param_sets[i].indices);
     w->SetMeshRotationTranslation(param_sets[i].model.R, param_sets[i].model.T);
     w->SetCameraParameters(param_sets[i].cam);
-    w->resize(image_points_pairs[i].first.width(), image_points_pairs[i].first.height());
+
+    int show_width = image_points_pairs[i].first.width();
+    int show_height = image_points_pairs[i].first.height();
+    double show_ratio = 640.0 / show_height;
+    w->resize(show_width * show_ratio, 640);
     w->show();
+
+    QImage recon_image = w->grabFrameBuffer();
+    fs::path image_path = fs::path(image_filenames[i]);
+
+    recon_image.save( (image_path.parent_path() / fs::path(image_path.stem().string() + "_recon.png")).string().c_str() );
 
     ofstream fout(image_filenames[i] + ".res");
     fout << param_sets[i].cam << endl;

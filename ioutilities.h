@@ -99,14 +99,22 @@ vector<Constraint2D> LoadConstraints(const string& filename) {
 pair<QImage, vector<Constraint2D>> LoadImageAndPoints(
   const string &image_filename, const string &pts_filename) {
   QImage img(image_filename.c_str());
-  cout << "image size: " << img.width() << "x" << img.height() << endl;
-  double image_size = img.height();
-  double scale_ratio = 1.0;
-  const double max_image_size = 640.0;
-  scale_ratio = max_image_size / image_size;
-  img = img.scaled(img.width() * scale_ratio, img.height() * scale_ratio);
 
   auto constraints = LoadConstraints(pts_filename);
+
+  // Compute a proper scale so the distance between pupils is approximately 200
+  double puple_distance = glm::distance(
+    0.5 * (constraints[28].data + constraints[30].data),
+    0.5 * (constraints[32].data + constraints[34].data));
+  const double reference_distance = 100.0;
+  double scale_ratio = reference_distance / puple_distance;
+
+  // Scale the image
+  img = img.scaled(img.width() * scale_ratio, img.height() * scale_ratio,
+                   Qt::KeepAspectRatio, Qt::SmoothTransformation);
+
+  cout << "image size: " << img.width() << "x" << img.height() << endl;
+
   // Preprocess constraints
   for (auto &constraint : constraints) {
     constraint.data = constraint.data * scale_ratio;

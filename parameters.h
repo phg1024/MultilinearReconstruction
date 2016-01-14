@@ -63,7 +63,7 @@ struct ModelParameters {
 
     model_params.R = Vector3d(0, 0, 0);
     model_params.T = Vector3d(0, 0, -1.0);
-    
+
     return model_params;
   }
 

@@ -1,6 +1,7 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#include <chrono>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -10,6 +11,7 @@
 #include <tuple>
 #include <unordered_map>
 #include <unordered_set>
+#include <thread>
 
 using namespace std;
 
