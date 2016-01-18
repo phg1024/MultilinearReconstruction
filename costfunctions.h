@@ -393,7 +393,7 @@ struct IdentityCostFunction {
                                 cam_params);
     // Compute residual
     residual[0] =
-      l1_norm(glm::dvec2(q.x, q.y), constraint.data) * constraint.weight;
+      l2_norm(glm::dvec2(q.x, q.y), constraint.data) * constraint.weight;
 
     return true;
   }
@@ -440,7 +440,7 @@ struct IdentityCostFunction_analytic : public ceres::CostFunction {
                                     Mview,
                                     cam_params);
         residual_p =
-          l1_norm(glm::dvec2(q.x, q.y), constraint.data) * constraint.weight;
+          l2_norm(glm::dvec2(q.x, q.y), constraint.data) * constraint.weight;
       }
 
       {
@@ -450,7 +450,7 @@ struct IdentityCostFunction_analytic : public ceres::CostFunction {
                                     Mview,
                                     cam_params);
         residual_m =
-          l1_norm(glm::dvec2(q.x, q.y), constraint.data) * constraint.weight;
+          l2_norm(glm::dvec2(q.x, q.y), constraint.data) * constraint.weight;
       }
 
       J_ref[i] = (residual_p - residual_m) / epsilon;
@@ -470,9 +470,9 @@ struct IdentityCostFunction_analytic : public ceres::CostFunction {
                                 Mview,
                                 cam_params);
     // Compute residual
-    // residuals[0] = dot(p - q, p - q)^0.25;
+    // residuals[0] = dot(p - q, p - q)^0.5;
     residuals[0] =
-      l1_norm(glm::dvec2(q.x, q.y), constraint.data) * constraint.weight * weight;
+      l2_norm(glm::dvec2(q.x, q.y), constraint.data) * constraint.weight * weight;
 
     if (jacobians != NULL) {
       assert(jacobians[0] != NULL);
@@ -482,7 +482,7 @@ struct IdentityCostFunction_analytic : public ceres::CostFunction {
       fvec[0] = q.x - constraint.data.x;
       fvec[1] = q.y - constraint.data.y;
 
-      const double scale_factor = 0.5 / std::pow(fvec.dot(fvec), 0.75);
+      const double scale_factor = 1.0 / std::pow(fvec.dot(fvec), 0.5);
 
       glm::dvec4 P = Mview * glm::dvec4(tm[0], tm[1], tm[2], 1.0);
       const double x0 = P.x, y0 = P.y, z0 = P.z;

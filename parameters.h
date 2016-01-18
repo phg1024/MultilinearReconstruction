@@ -15,7 +15,7 @@ struct CameraParameters {
 
   static CameraParameters DefaultParameters(int image_width,
                                             int image_height) {
-    const double fovy = deg2rad(40.0);
+    const double fovy = deg2rad(25.0);
     const double far = 100.0;
     return CameraParameters(fovy, far, image_width, image_height);
   }
@@ -59,9 +59,9 @@ struct ModelParameters {
     model_params.Wexp = model_params.Wexp_FACS.transpose() * Uexp;
 
     // Use average identity
-    model_params.Wid = Uid.row(0);
+    model_params.Wid = Uid.colwise().mean();
 
-    model_params.R = Vector3d(0, 0, 0);
+    model_params.R = Vector3d(1e-3, 1e-3, 1e-3);
     model_params.T = Vector3d(0, 0, -1.0);
 
     return model_params;

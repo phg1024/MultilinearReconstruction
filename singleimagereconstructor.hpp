@@ -79,6 +79,10 @@ public:
 
   void SetModelParameters(const ModelParameters& params) { params_model = params; }
 
+  void SetIdentityPrior(const VectorXd& mu_id) {
+    prior.Wid0 = mu_id;
+  }
+
   const Vector3d &GetRotation() const { return params_model.R; }
 
   const Vector3d &GetTranslation() const { return params_model.T; }
@@ -129,7 +133,7 @@ protected:
 
   void OptimizeForIdentity(int iteration);
 
-  void UpdateContourIndices();
+  void UpdateContourIndices(int iteration);
 
   double ComputeError();
 
@@ -181,7 +185,7 @@ void SingleImageReconstructor<Constraint>::InitializeParameters() {
                                                                     prior.Uexp);
 
   // No rotation and translation
-  model_params.R = Vector3d(0, 0, 0);
+  model_params.R = Vector3d(1e-3, 1e-3, 1e-3);
   model_params.T = Vector3d(0, 0, -1.0);
 
   SetInitialParameters(model_params, camera_params);
@@ -216,15 +220,19 @@ bool SingleImageReconstructor<Constraint>::Reconstruct() {
     InitializeParameters();
   }
 
+  for (int i = 0; i < num_contour_points; ++i) {
+    params_recon.cons[i].weight = 10.0;
+  }
+
   ColorStream(ColorOutput::Red) << "Initial Error = " << ComputeError();
 
   // Optimization parameters
   const int kMaxIterations = need_precise_result ? 8 : 4;
   const double init_weights = 1.0;
-  prior.weight_Wid = 1.0;
-  const double d_wid = 0.25;
-  prior.weight_Wexp = 5.0;
-  const double d_wexp = 1.25;
+  prior.weight_Wid = 100.0;
+  const double d_wid = 20.0;
+  prior.weight_Wexp = 10.0;
+  const double d_wexp = 2.0;
   int iters = 0;
 
   // Before entering the main loop, estimate the translation first
@@ -247,13 +255,13 @@ bool SingleImageReconstructor<Constraint>::Reconstruct() {
       if(opt_mode & Pose) {
         for (int pose_opt_iter = 0; pose_opt_iter < 2; ++pose_opt_iter) {
           OptimizeForPose(2);
-          UpdateContourIndices();
+          UpdateContourIndices(iters);
         }
       }
 
       if(opt_mode & Expression) {
-        //OptimizeForExpression(2);
-        OptimizeForExpression_FACS(2);
+        //OptimizeForExpression(iters*100);
+        OptimizeForExpression_FACS(iters);
       }
 
       if(opt_mode & FocalLength) {
@@ -271,12 +279,12 @@ bool SingleImageReconstructor<Constraint>::Reconstruct() {
       if(opt_mode & Pose) {
         for (int pose_opt_iter = 0; pose_opt_iter < 2; ++pose_opt_iter) {
           OptimizeForPose(2);
-          UpdateContourIndices();
+          UpdateContourIndices(iters);
         }
       }
 
       if(opt_mode & Identity) {
-        OptimizeForIdentity(2);
+        OptimizeForIdentity(iters*10);
       }
 
       if(opt_mode & FocalLength) {
@@ -510,7 +518,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression(
   double puple_distance = glm::distance(
     0.5 * (params_recon.cons[28].data + params_recon.cons[30].data),
     0.5 * (params_recon.cons[32].data + params_recon.cons[34].data));
-  double prior_scale = puple_distance / 100.0;
+  double prior_scale = 100.0 / puple_distance;
 
   // Define the optimization problem
   ceres::Problem problem;
@@ -550,7 +558,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression(
     ceres::Solver::Options options;
     options.max_num_iterations = iteration * 3;
     options.minimizer_type = ceres::LINE_SEARCH;
-    options.line_search_direction_type = ceres::LBFGS;
+    options.line_search_direction_type = ceres::STEEPEST_DESCENT;
     DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
     ceres::Solver::Summary summary;
     Solve(options, &problem, &summary);
@@ -586,7 +594,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
   double puple_distance = glm::distance(
     0.5 * (params_recon.cons[28].data + params_recon.cons[30].data),
     0.5 * (params_recon.cons[32].data + params_recon.cons[34].data));
-  double prior_scale = puple_distance / 100.0;
+  double prior_scale = 100.0 / puple_distance;
 
   // Define the optimization problem
   ceres::Problem problem;
@@ -638,7 +646,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
     ceres::Solver::Options options;
     options.max_num_iterations = iteration * 3;
     options.minimizer_type = ceres::LINE_SEARCH;
-    options.line_search_direction_type = ceres::LBFGS;
+    options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
     DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
     ceres::Solver::Summary summary;
     Solve(options, &problem, &summary);
@@ -646,7 +654,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
 
     if (need_precise_result) {
       options.max_num_iterations = iteration * 5;
-      options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
+      options.line_search_direction_type = ceres::STEEPEST_DESCENT;
       Solve(options, &problem, &summary);
       DEBUG_OUTPUT(summary.BriefReport())
     }
@@ -681,7 +689,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
   double puple_distance = glm::distance(
     0.5 * (params_recon.cons[28].data + params_recon.cons[30].data),
     0.5 * (params_recon.cons[32].data + params_recon.cons[34].data));
-  double prior_scale = puple_distance / 100.0;
+  double prior_scale = 100.0 / puple_distance;
 
   // Define the optimization problem
   ceres::Problem problem;
@@ -723,9 +731,9 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
     boost::timer::auto_cpu_timer timer_solve(
       "[Identity optimization] Problem solve time = %w seconds.\n");
     ceres::Solver::Options options;
-    options.max_num_iterations = iteration * 3;
-    options.minimizer_type = ceres::LINE_SEARCH;
-    options.line_search_direction_type = ceres::LBFGS;
+    options.max_num_iterations = iteration;
+    //options.minimizer_type = ceres::LINE_SEARCH;
+    //options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
     DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
     ceres::Solver::Summary summary;
     Solve(options, &problem, &summary);
@@ -733,7 +741,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
 
     if (need_precise_result) {
       options.max_num_iterations = iteration * 5;
-      options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
+      options.line_search_direction_type = ceres::STEEPEST_DESCENT;
       Solve(options, &problem, &summary);
       DEBUG_OUTPUT(summary.FullReport())
     }
@@ -746,7 +754,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
 }
 
 template<typename Constraint>
-void SingleImageReconstructor<Constraint>::UpdateContourIndices() {
+void SingleImageReconstructor<Constraint>::UpdateContourIndices(int iterations) {
   boost::timer::auto_cpu_timer timer(
     "[Contour update] Contour vertices update time = %w seconds.\n");
   // Create view matrix
@@ -789,11 +797,13 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices() {
                      glm::dvec4(n0[0], n0[1], n0[2], 1.0);
 
       // Compute the dot product of normal and view direction
+      glm::dvec3 view_vector(0, 0, -1);
       dot_products[i] = glm::dot(glm::normalize(glm::dvec3(n.x, n.y, n.z)),
-                                 glm::dvec3(0, 0, 0) -
-                                 glm::dvec3(p.x, p.y, p.z));
+                                 view_vector);
 
       dot_products[i] = fabs(dot_products[i]);
+
+      if(n.z < 0) dot_products[i] = 1e6;
     }
 
     auto min_iter = std::min_element(dot_products.begin(), dot_products.end());
@@ -876,7 +886,7 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices() {
       dists[j] = dx * dx + dy * dy;
     }
     auto min_iter = std::min_element(dists.begin(), dists.end());
-    double min_acceptable_dist = 10.0;
+    double min_acceptable_dist = 5 * iterations * iterations;
     if (sqrt(*min_iter) > min_acceptable_dist) {
       //cout << sqrt(*min_iter) << endl;
       continue;

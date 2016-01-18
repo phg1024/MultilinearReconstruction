@@ -139,6 +139,8 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
 
   const size_t num_images = image_points_pairs.size();
 
+  VectorXd identity_centroid;
+
   // Main reconstruction loop
   //  1. Use single image reconstructor to do per-image reconstruction first
   //  2. Select a consistent set of images for joint reconstruction
@@ -154,7 +156,9 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
       single_recon.SetConstraints(param_sets[i].recon.cons);
 
       single_recon.SetInitialParameters(param_sets[i].model, param_sets[i].cam);
+      if(iters_main_loop > 1) single_recon.SetIdentityPrior(identity_centroid);
 
+      // Perform reconstruction
       {
         boost::timer::auto_cpu_timer t("Single image reconstruction finished in %w seconds.\n");
         single_recon.Reconstruct();
@@ -194,7 +198,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
     assert(consistent_set.size() > 0);
 
     // Compute the centroid of the consistent set
-    VectorXd identity_centroid = VectorXd::Zero(param_sets[0].model.Wid.rows());
+    identity_centroid = VectorXd::Zero(param_sets[0].model.Wid.rows());
     for(auto i : consistent_set) {
       identity_centroid += param_sets[i].model.Wid;
     }
