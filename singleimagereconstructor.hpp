@@ -221,18 +221,18 @@ bool SingleImageReconstructor<Constraint>::Reconstruct() {
   }
 
   for (int i = 0; i < num_contour_points; ++i) {
-    params_recon.cons[i].weight = 10.0;
+    params_recon.cons[i].weight = 0.5;
   }
 
   ColorStream(ColorOutput::Red) << "Initial Error = " << ComputeError();
 
   // Optimization parameters
-  const int kMaxIterations = need_precise_result ? 8 : 4;
+  const int kMaxIterations = need_precise_result ? 8 : 5;
   const double init_weights = 1.0;
   prior.weight_Wid = 100.0;
-  const double d_wid = 20.0;
-  prior.weight_Wexp = 10.0;
-  const double d_wexp = 2.0;
+  const double d_wid = 10.0;
+  prior.weight_Wexp = 100.0;
+  const double d_wexp = 10.0;
   int iters = 0;
 
   // Before entering the main loop, estimate the translation first
@@ -253,15 +253,15 @@ bool SingleImageReconstructor<Constraint>::Reconstruct() {
       mesh.ComputeNormals();
 
       if(opt_mode & Pose) {
-        for (int pose_opt_iter = 0; pose_opt_iter < 2; ++pose_opt_iter) {
-          OptimizeForPose(2);
+        for (int pose_opt_iter = 0; pose_opt_iter < 1; ++pose_opt_iter) {
+          OptimizeForPose(30);
           UpdateContourIndices(iters);
         }
       }
 
       if(opt_mode & Expression) {
         //OptimizeForExpression(iters*100);
-        OptimizeForExpression_FACS(iters);
+        OptimizeForExpression_FACS(iters*5);
       }
 
       if(opt_mode & FocalLength) {
@@ -277,14 +277,14 @@ bool SingleImageReconstructor<Constraint>::Reconstruct() {
       mesh.ComputeNormals();
 
       if(opt_mode & Pose) {
-        for (int pose_opt_iter = 0; pose_opt_iter < 2; ++pose_opt_iter) {
-          OptimizeForPose(2);
+        for (int pose_opt_iter = 0; pose_opt_iter < 1; ++pose_opt_iter) {
+          OptimizeForPose(30);
           UpdateContourIndices(iters);
         }
       }
 
       if(opt_mode & Identity) {
-        OptimizeForIdentity(iters*10);
+        OptimizeForIdentity(iters*5);
       }
 
       if(opt_mode & FocalLength) {
@@ -297,8 +297,8 @@ bool SingleImageReconstructor<Constraint>::Reconstruct() {
       E;
 
       // Adjust weights
-      prior.weight_Wid -= d_wid;
-      prior.weight_Wexp -= d_wexp;
+      prior.weight_Wid /= d_wid; prior.weight_Wid = max(prior.weight_Wid, 10.0);
+      prior.weight_Wexp /= d_wexp; prior.weight_Wexp = max(prior.weight_Wexp, 1.0);
       for (int i = 0; i < num_contour_points; ++i) {
         params_recon.cons[i].weight = sqrt(params_recon.cons[i].weight);
       }
@@ -424,6 +424,15 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose(int max_iters) {
       problem.AddResidualBlock(cost_function, NULL, params.data());
 #endif
     }
+
+#if 1
+    // Add a regularization term
+    ceres::CostFunction *reg_cost_function =
+      new ceres::NumericDiffCostFunction<PoseRegularizationTerm, ceres::CENTRAL, 1, 3>(
+        new PoseRegularizationTerm(10.0)
+      );
+    problem.AddResidualBlock(reg_cost_function, NULL, params.data());
+#endif
   }
 
   {
@@ -432,8 +441,18 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose(int max_iters) {
 
     ceres::Solver::Options options;
     options.max_num_iterations = max_iters;
-    options.minimizer_type = ceres::LINE_SEARCH;
-    options.line_search_direction_type = ceres::LBFGS;
+
+    options.num_threads = 8;
+    options.num_linear_solver_threads = 8;
+
+    /*
+    options.initial_trust_region_radius = 1.0;
+    options.min_trust_region_radius = 0.75;
+    options.max_trust_region_radius = 1.25;
+    options.min_lm_diagonal = 0.75;
+    options.max_lm_diagonal = 1.25;
+    */
+
     DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
     ceres::Solver::Summary summary;
 
@@ -644,17 +663,27 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
     boost::timer::auto_cpu_timer timer_solve(
       "[Expression optimization] Problem solve time = %w seconds.\n");
     ceres::Solver::Options options;
-    options.max_num_iterations = iteration * 3;
-    options.minimizer_type = ceres::LINE_SEARCH;
-    options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
+    options.max_num_iterations = iteration;
+
+    options.num_threads = 8;
+    options.num_linear_solver_threads = 8;
+
+    options.initial_trust_region_radius = 10.0;
+    options.min_trust_region_radius = 5.0;
+    options.max_trust_region_radius = 20.0;
+    options.min_lm_diagonal = 1.0;
+    options.max_lm_diagonal = 1.0;
+
     DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
     ceres::Solver::Summary summary;
     Solve(options, &problem, &summary);
     DEBUG_OUTPUT(summary.BriefReport())
 
-    if (need_precise_result) {
-      options.max_num_iterations = iteration * 5;
-      options.line_search_direction_type = ceres::STEEPEST_DESCENT;
+    //if (need_precise_result)
+    {
+      options.max_num_iterations = 5;
+      options.minimizer_type = ceres::LINE_SEARCH;
+      options.line_search_direction_type = ceres::LBFGS;
       Solve(options, &problem, &summary);
       DEBUG_OUTPUT(summary.BriefReport())
     }
@@ -727,30 +756,42 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
   }
 
   // Solve it
-  {
+  for(int iii=0;iii<iteration;++iii) {
     boost::timer::auto_cpu_timer timer_solve(
       "[Identity optimization] Problem solve time = %w seconds.\n");
     ceres::Solver::Options options;
-    options.max_num_iterations = iteration;
-    //options.minimizer_type = ceres::LINE_SEARCH;
-    //options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
+    options.max_num_iterations = 1;
+
+    options.num_threads = 8;
+    options.num_linear_solver_threads = 8;
+
+    double under_relax_factor;
+
+    if(iii<iteration/5.0*4.0) {
+      under_relax_factor = 0.1;
+      options.initial_trust_region_radius = 10.0;
+      options.min_trust_region_radius = 5.0;
+      options.max_trust_region_radius = 20.0;
+      options.min_lm_diagonal = 1.0;
+      options.max_lm_diagonal = 1.0;
+    } else {
+      under_relax_factor = 1.0;
+      options.max_num_iterations = 5;
+      options.minimizer_type = ceres::LINE_SEARCH;
+      options.line_search_direction_type = ceres::LBFGS;
+    }
+
     DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
     ceres::Solver::Summary summary;
     Solve(options, &problem, &summary);
     DEBUG_OUTPUT(summary.FullReport())
 
-    if (need_precise_result) {
-      options.max_num_iterations = iteration * 5;
-      options.line_search_direction_type = ceres::STEEPEST_DESCENT;
-      Solve(options, &problem, &summary);
-      DEBUG_OUTPUT(summary.FullReport())
-    }
+    // Update the model parameters
+    DEBUG_OUTPUT(params_model.Wid.transpose() << endl << " -> " << endl <<
+                 params.transpose())
+    params_model.Wid = (1.0 - under_relax_factor) * params_model.Wid + under_relax_factor * params;
+    params = params_model.Wid;
   }
-
-  // Update the model parameters
-  DEBUG_OUTPUT(params_model.Wid.transpose() << endl << " -> " << endl <<
-               params.transpose())
-  params_model.Wid = params;
 }
 
 template<typename Constraint>
@@ -886,7 +927,7 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices(int iterations) 
       dists[j] = dx * dx + dy * dy;
     }
     auto min_iter = std::min_element(dists.begin(), dists.end());
-    double min_acceptable_dist = 5 * iterations * iterations;
+    double min_acceptable_dist = 50 * iterations * iterations;
     if (sqrt(*min_iter) > min_acceptable_dist) {
       //cout << sqrt(*min_iter) << endl;
       continue;

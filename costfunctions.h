@@ -17,11 +17,11 @@ using namespace Eigen;
 
 inline glm::dvec3 ProjectPoint_ref(const glm::dvec3 &p, const glm::dmat4 &Mview,
                                    const CameraParameters &cam_params) {
-  const double fovy = 45.0;
+  const double fovy = cam_params.fovy;
   const double aspect_ratio = static_cast<double>(cam_params.image_size.x) /
                               static_cast<double>(cam_params.image_size.y);
   const double top = 1.0;
-  const double near = top / tan(fovy * 0.5), far = 100.0;
+  const double near = top / tan(fovy * 0.5), far = cam_params.far;
 
   glm::dmat4 Mproj = glm::perspective(fovy, aspect_ratio, near, far);
 
@@ -136,6 +136,17 @@ struct PoseCostFunction {
   MultilinearModel model;
   Constraint2D constraint;
   CameraParameters cam_params;
+};
+
+struct PoseRegularizationTerm {
+  PoseRegularizationTerm(double weight) : weight(weight) {}
+
+  bool operator()(const double *const params, double *residual) const {
+    residual[0] = params[1] * weight;
+    return true;
+  }
+
+  double weight;
 };
 
 // differential of euler angle functions
