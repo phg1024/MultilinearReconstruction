@@ -27,7 +27,7 @@ using namespace Eigen;
 
 #define USE_ANALYTIC_COST_FUNCTIONS 1
 
-static double REFERENCE_SCALE = 200.0;
+static double REFERENCE_SCALE = 100.0;
 
 template<typename Constraint>
 class SingleImageReconstructor {

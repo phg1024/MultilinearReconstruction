@@ -106,7 +106,7 @@ pair<QImage, vector<Constraint2D>> LoadImageAndPoints(
   double puple_distance = glm::distance(
     0.5 * (constraints[28].data + constraints[30].data),
     0.5 * (constraints[32].data + constraints[34].data));
-  const double reference_distance = 250.0;
+  const double reference_distance = 100.0;
   double scale_ratio = reference_distance / puple_distance;
 
   // Scale the image
