@@ -905,4 +905,20 @@ struct ExpressionRegularizationCostFunction {
   double weight;
 };
 
+struct ExpressionRegularizationTerm {
+  ExpressionRegularizationTerm(double weight) : weight(weight) {}
+
+  bool operator()(const double *const *w, double *residual) const {
+    const int params_length = 47;
+    residual[0] = 0;
+    for(int i=0;i<params_length-1;++i) {
+      residual[0] += w[0][i]*w[0][i];
+    }
+    residual[0] *= weight;
+    return true;
+  }
+
+  double weight;
+};
+
 #endif // COSTFUNCTIONS_H

@@ -71,7 +71,9 @@ int main(int argc, char *argv[])
   w.BindUpdatedLandmarks(recon.GetUpdatedIndices());
   w.SetMeshRotationTranslation(R, T);
   w.SetCameraParameters(cam_params);
-  w.resize(img.width(), img.height());
+
+  double scale = 640.0 / img.height();
+  w.resize(img.width() * scale, img.height() * scale);
   w.show();
 
   // Save the reconstruction results

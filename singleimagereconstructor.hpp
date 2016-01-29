@@ -27,6 +27,8 @@ using namespace Eigen;
 
 #define USE_ANALYTIC_COST_FUNCTIONS 1
 
+static double REFERENCE_SCALE = 200.0;
+
 template<typename Constraint>
 class SingleImageReconstructor {
 public:
@@ -227,7 +229,7 @@ bool SingleImageReconstructor<Constraint>::Reconstruct() {
   ColorStream(ColorOutput::Red) << "Initial Error = " << ComputeError();
 
   // Optimization parameters
-  const int kMaxIterations = need_precise_result ? 8 : 5;
+  const int kMaxIterations = need_precise_result ? 8 : 3;
   const double init_weights = 1.0;
   prior.weight_Wid = 100.0;
   const double d_wid = 10.0;
@@ -261,7 +263,7 @@ bool SingleImageReconstructor<Constraint>::Reconstruct() {
 
       if(opt_mode & Expression) {
         //OptimizeForExpression(iters*100);
-        OptimizeForExpression_FACS(iters*5);
+        OptimizeForExpression_FACS(iters*10);
       }
 
       if(opt_mode & FocalLength) {
@@ -284,7 +286,7 @@ bool SingleImageReconstructor<Constraint>::Reconstruct() {
       }
 
       if(opt_mode & Identity) {
-        OptimizeForIdentity(iters*5);
+        OptimizeForIdentity(iters*20);
       }
 
       if(opt_mode & FocalLength) {
@@ -429,7 +431,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose(int max_iters) {
     // Add a regularization term
     ceres::CostFunction *reg_cost_function =
       new ceres::NumericDiffCostFunction<PoseRegularizationTerm, ceres::CENTRAL, 1, 3>(
-        new PoseRegularizationTerm(10.0)
+        new PoseRegularizationTerm(100.0)
       );
     problem.AddResidualBlock(reg_cost_function, NULL, params.data());
 #endif
@@ -537,7 +539,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression(
   double puple_distance = glm::distance(
     0.5 * (params_recon.cons[28].data + params_recon.cons[30].data),
     0.5 * (params_recon.cons[32].data + params_recon.cons[34].data));
-  double prior_scale = 100.0 / puple_distance;
+  double prior_scale = REFERENCE_SCALE / puple_distance;
 
   // Define the optimization problem
   ceres::Problem problem;
@@ -568,6 +570,11 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression(
     prior_cost_function->AddParameterBlock(params.size());
     prior_cost_function->SetNumResiduals(1);
     problem.AddResidualBlock(prior_cost_function, NULL, params.data());
+
+    for(int i=0;i<params.size();++i) {
+      problem.SetParameterLowerBound(params.data(), i, 0.0);
+      problem.SetParameterUpperBound(params.data(), i, 1.0);
+    }
   }
 
   // Solve it
@@ -613,7 +620,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
   double puple_distance = glm::distance(
     0.5 * (params_recon.cons[28].data + params_recon.cons[30].data),
     0.5 * (params_recon.cons[32].data + params_recon.cons[34].data));
-  double prior_scale = 100.0 / puple_distance;
+  double prior_scale = REFERENCE_SCALE / puple_distance;
 
   // Define the optimization problem
   ceres::Problem problem;
@@ -647,6 +654,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
       problem.AddResidualBlock(cost_function, NULL, params.data() + 1);
     }
 
+    // Expression prior term
     ceres::DynamicNumericDiffCostFunction<ExpressionRegularizationCostFunction> *prior_cost_function =
       new ceres::DynamicNumericDiffCostFunction<ExpressionRegularizationCostFunction>(
         new ExpressionRegularizationCostFunction(prior.Wexp_avg,
@@ -656,6 +664,20 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
     prior_cost_function->AddParameterBlock(params.size()-1);
     prior_cost_function->SetNumResiduals(1);
     problem.AddResidualBlock(prior_cost_function, NULL, params.data()+1);
+
+    // Expression regularization term, minimize the norm of the expression vector
+    ceres::DynamicNumericDiffCostFunction<ExpressionRegularizationTerm> *reg_cost_function =
+      new ceres::DynamicNumericDiffCostFunction<ExpressionRegularizationTerm>(
+        new ExpressionRegularizationTerm(10.0)
+      );
+    reg_cost_function->AddParameterBlock(params.size()-1);
+    reg_cost_function->SetNumResiduals(1);
+    problem.AddResidualBlock(reg_cost_function, NULL, params.data()+1);
+
+    for(int i=0;i<params.size()-1;++i) {
+      problem.SetParameterLowerBound(params.data()+1, i, 0.0);
+      problem.SetParameterUpperBound(params.data()+1, i, 1.0);
+    }
   }
 
   // Solve it
@@ -718,7 +740,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
   double puple_distance = glm::distance(
     0.5 * (params_recon.cons[28].data + params_recon.cons[30].data),
     0.5 * (params_recon.cons[32].data + params_recon.cons[34].data));
-  double prior_scale = 100.0 / puple_distance;
+  double prior_scale = REFERENCE_SCALE / puple_distance;
 
   // Define the optimization problem
   ceres::Problem problem;
