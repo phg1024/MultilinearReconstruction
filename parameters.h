@@ -15,8 +15,8 @@ struct CameraParameters {
 
   static CameraParameters DefaultParameters(int image_width,
                                             int image_height) {
-    const double fovy = deg2rad(25.0);
-    const double far = 50.0;
+    const double fovy = deg2rad(15.0);
+    const double far = 1000.0;
     return CameraParameters(fovy, far, image_width, image_height);
   }
 

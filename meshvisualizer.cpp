@@ -6,6 +6,7 @@
 MeshVisualizer::MeshVisualizer(const string &title, const BasicMesh &mesh)
   : QGLWidget(QGLFormat(QGL::SampleBuffers | QGL::AlphaChannel | QGL::DepthBuffer)),
     mesh(mesh), image_tex(-1),
+    use_external_rotation_translation(false),
     rot_x(0.0), rot_y(0.0), face_alpha(0.5),
     draw_faces(true), draw_edges(false), draw_points(false)
 {
@@ -81,51 +82,90 @@ void MeshVisualizer::paintGL() {
 #endif
 
     // Setup Camera's model-view-projection matrix
-    glMatrixMode(GL_PROJECTION);
+    glm::dmat4 rotation_matrix;
+    if(use_external_rotation_translation) {
+      cout << "Using external rotation and translation ..." << endl;
+      double aspect_ratio = width() / (double) height();
 
-    const double aspect_ratio =
-      camera_params.image_size.x / camera_params.image_size.y;
+      double far = 1000.0, near = 0.01;
+      glm::dmat4 Mproj = glm::dmat4(-camera_params.focal_length / (0.5 * camera_params.image_size.x), 0, 0, 0,
+                                    0, -camera_params.focal_length / (0.5 * camera_params.image_size.y), 0, 0,
+                                    0, 0, -(far+near)/(far-near), -1,
+                                    0, 0, -2.0*far*near/(far-near), 0);
 
-    const double far = camera_params.far;
-    // near is the focal length
-    const double near = camera_params.focal_length;
-    const double top = near * tan(0.5 * camera_params.fovy);
-    const double right = top * aspect_ratio;
-    glm::dmat4 Mproj = glm::dmat4(near/right, 0, 0, 0,
-                                  0, near/top, 0, 0,
-                                  0, 0, -(far+near)/(far-near), -1,
-                                  0, 0, -2.0 * far * near / (far - near), 0.0);
 
-    glLoadMatrixd(&Mproj[0][0]);
+      glMatrixMode(GL_PROJECTION);
+      glLoadMatrixd(&Mproj[0][0]);
 
-    glViewport(0, 0, width(), height());
+      glViewport(0, 0, width(), height());
 
-    glm::dmat4 Rmat = glm::eulerAngleYXZ(mesh_rotation[0],
-                                         mesh_rotation[1],
-                                         mesh_rotation[2]);
+      glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0), translation_vector_in);
 
-    glm::dmat4 Rmat_interaction = glm::eulerAngleXY(rot_x, rot_y);
+      glm::dmat4 Rmat_interaction = glm::eulerAngleXY(rot_x, rot_y);
 
-    glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
-                                     glm::dvec3(mesh_translation[0],
-                                                mesh_translation[1],
-                                                mesh_translation[2]));
+      glm::dmat4 Mmat = Tmat * Rmat_interaction * rotation_matrix_in;
+      glMatrixMode(GL_MODELVIEW);
 
-    glm::dmat4 MV = Tmat * Rmat_interaction * Rmat;
-    glMatrixMode(GL_MODELVIEW);
-    glLoadMatrixd(&MV[0][0]);
+      glm::dmat4 Vmat = glm::lookAt(glm::dvec3(0, 0, 0),
+                                    glm::dvec3(0, 0, -1),
+                                    glm::dvec3(0, 1, 0));
 
-    // compensate for scaling in screen space
-    double xratio = static_cast<double>(width()) / static_cast<double>(image.width());
-    double yratio = static_cast<double>(height()) / static_cast<double>(image.height());
+      Vmat = glm::dmat4(1.0);
+
+      glm::dmat4 MV = Vmat * Mmat;
+
+      glLoadMatrixd(&MV[0][0]);
+
+      rotation_matrix = rotation_matrix_in;
+
+      glClear(GL_DEPTH_BUFFER_BIT);
+    } else {
+      glMatrixMode(GL_PROJECTION);
+
+      const double aspect_ratio =
+        camera_params.image_size.x / camera_params.image_size.y;
+
+      const double far = camera_params.far;
+      // near is the focal length
+      const double near = camera_params.focal_length;
+      const double top = near * tan(0.5 * camera_params.fovy);
+      const double right = top * aspect_ratio;
+      glm::dmat4 Mproj = glm::dmat4(near/right, 0, 0, 0,
+                                    0, near/top, 0, 0,
+                                    0, 0, -(far+near)/(far-near), -1,
+                                    0, 0, -2.0 * far * near / (far - near), 0.0);
+
+      glLoadMatrixd(&Mproj[0][0]);
+
+      glViewport(0, 0, width(), height());
+
+      glm::dmat4 Rmat = glm::eulerAngleYXZ(mesh_rotation[0],
+                                           mesh_rotation[1],
+                                           mesh_rotation[2]);
+
+      glm::dmat4 Rmat_interaction = glm::eulerAngleXY(rot_x, rot_y);
+
+      glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
+                                       glm::dvec3(mesh_translation[0],
+                                                  mesh_translation[1],
+                                                  mesh_translation[2]));
+
+      glm::dmat4 MV = Tmat * Rmat_interaction * Rmat;
+      glMatrixMode(GL_MODELVIEW);
+      glLoadMatrixd(&MV[0][0]);
+
+      rotation_matrix = Rmat;
+    }
 
     glPushMatrix();
 
     EnableLighting();
 
     if( draw_faces ) {
+
       glEnable(GL_CULL_FACE);
       glCullFace(GL_BACK);
+
       /// Draw faces
       glColor4d(.75, .75, .75, face_alpha);
       GLfloat mat_diffuse[] = {0.5, 0.5, 0.5, static_cast<float>(face_alpha)};
@@ -144,8 +184,27 @@ void MeshVisualizer::paintGL() {
         auto n0 = mesh.vertex_normal(face_i[0]);
         auto n1 = mesh.vertex_normal(face_i[1]);
         auto n2 = mesh.vertex_normal(face_i[2]);
+
+        auto set_diffuse_color_by_normal = [=](Vector3d n0) {
+          glm::dvec4 n = glm::transpose(glm::inverse(rotation_matrix)) * glm::dvec4(n0[0], n0[1], n0[2], 1.0);
+          if(n.z > 0) {
+            GLfloat mat_diffuse[] = {(n.x + 1.0) * 0.5,
+                                      (n.y + 1.0) * 0.5,
+                                      (n.z + 1.0) * 0.5, static_cast<float>(face_alpha)};
+            glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
+          } else {
+            GLfloat mat_diffuse[] = {0.05, 0.05, 0.05, static_cast<float>(face_alpha)};
+            glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
+          }
+        };
+
+        set_diffuse_color_by_normal(n0);
         glNormal3dv(n0.data());glVertex3dv(v0.data());
+
+        set_diffuse_color_by_normal(n1);
         glNormal3dv(n1.data());glVertex3dv(v1.data());
+
+        set_diffuse_color_by_normal(n2);
         glNormal3dv(n2.data());glVertex3dv(v2.data());
       }
       glEnd();

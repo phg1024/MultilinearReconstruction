@@ -61,6 +61,7 @@ set(PhGLib "-L/home/phg/SDKs/PhGLib/lib -lPhGLib")
 find_package(Qt5Core)
 find_package(Qt5Widgets)
 find_package(Qt5OpenGL)
+find_package(Qt5Test)
 
 # Ceres solver
 find_package(Ceres REQUIRED)
@@ -102,6 +103,7 @@ target_link_libraries(SingleImageReconstruction
                       Qt5::Core
                       Qt5::Widgets
                       Qt5::OpenGL
+		              Qt5::Test
 											${MKLLIBS}
 											${PhGLib})
 
@@ -115,6 +117,7 @@ target_link_libraries(MultiImageReconstruction
         Qt5::Core
         Qt5::Widgets
         Qt5::OpenGL
+		Qt5::Test
         ${MKLLIBS}
         ${PhGLib})
 

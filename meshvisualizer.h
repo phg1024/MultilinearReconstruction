@@ -32,6 +32,12 @@ public slots:
   void SetMeshRotationTranslation(const Vector3d& R, const Vector3d& T);
   void SetCameraParameters(const CameraParameters& cam_params);
 
+  void SetRotationMatrixTranslationVector(const glm::dmat4& R, const glm::dvec3& T) {
+    use_external_rotation_translation = true;
+    rotation_matrix_in = R;
+    translation_vector_in = T;
+  }
+
 protected:
   void CreateTexture();
 
@@ -50,6 +56,10 @@ private:
   CameraParameters camera_params;
 
   double rot_x, rot_y;
+
+  bool use_external_rotation_translation;
+  glm::dmat4 rotation_matrix_in;
+  glm::dvec3 translation_vector_in;
 
   double face_alpha;
   bool draw_faces, draw_edges;

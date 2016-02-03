@@ -39,6 +39,9 @@ struct MultilinearModelPrior {
   VectorXd Wid_avg, Wexp_avg;
   VectorXd Wid0, Wexp0;       // identity and expression prior
   MatrixXd Uid, Uexp;
+
+  VectorXd Uid_max, Uid_min, Uexp_max, Uexp_min;
+
   MatrixXd sigma_Wid, sigma_Wexp;
   MatrixXd inv_sigma_Wid, inv_sigma_Wexp;
   double weight_Wid, weight_Wexp;
@@ -78,8 +81,15 @@ struct MultilinearModelPrior {
     cout << "Uid = " << Uid << endl;
     */
 
+    const double MAX_ALLOWED_WEIGHT_RANGE = 1.25;
     message("processing identity prior.");
     inv_sigma_Wid = sigma_Wid.inverse();
+    Uid_max.resize(n);
+    Uid_min.resize(n);
+    for(int i=0;i<n;++i) {
+      Uid_max(i) = Wid_avg(i) + (Uid.col(i).maxCoeff() - Wid_avg(i)) * MAX_ALLOWED_WEIGHT_RANGE;
+      Uid_min(i) = Wid_avg(i) + (Uid.col(i).minCoeff() - Wid_avg(i)) * MAX_ALLOWED_WEIGHT_RANGE;
+    }
     message("done");
 
     const string fnwexp = filename_exp;
@@ -114,6 +124,12 @@ struct MultilinearModelPrior {
     */
     message("processing expression prior.");
     inv_sigma_Wexp = sigma_Wexp.inverse();
+    Uexp_max.resize(n);
+    Uexp_min.resize(n);
+    for(int i=0;i<n;++i) {
+      Uexp_max(i) = Wexp_avg(i) + (Uexp.col(i).maxCoeff() - Wexp_avg(i)) * MAX_ALLOWED_WEIGHT_RANGE;
+      Uexp_min(i) = Wexp_avg(i) + (Uexp.col(i).minCoeff() - Wexp_avg(i)) * MAX_ALLOWED_WEIGHT_RANGE;
+    }
     message("done.");
   }
 };

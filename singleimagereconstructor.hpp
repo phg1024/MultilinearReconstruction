@@ -25,9 +25,15 @@ using namespace Eigen;
 
 #include "boost/timer/timer.hpp"
 
+#include <opencv2/opencv.hpp>
+
+#include "glm/ext.hpp"
+
+#include <QTest>
+
 #define USE_ANALYTIC_COST_FUNCTIONS 1
 
-static double REFERENCE_SCALE = 100.0;
+static double REFERENCE_SCALE = 1.0;
 
 template<typename Constraint>
 class SingleImageReconstructor {
@@ -41,7 +47,7 @@ public:
   };
 
   SingleImageReconstructor()
-    : opt_mode(All), need_precise_result(false), is_parameters_initialized(false) {}
+    : opt_mode(All), need_precise_result(false), is_parameters_initialized(false), display_step_result(false) {}
 
   void LoadModel(const string &filename) { model = MultilinearModel(filename); }
 
@@ -55,6 +61,10 @@ public:
   void SetConstraints(
     const vector<Constraint> &cons) { params_recon.cons = cons; }
 
+  void SetImage(const QImage& img_in) {
+    img = img_in;
+  }
+
   void SetImageSize(int w, int h) {
     params_recon.imageWidth = w;
     params_recon.imageHeight = h;
@@ -62,6 +72,10 @@ public:
 
   void SetMesh(const BasicMesh &mesh_in) {
     mesh = mesh_in;
+  }
+
+  const BasicMesh& GetMesh() const {
+    return mesh;
   }
 
   void SetOptimizationParameters(const OptimizationParameters &params) {
@@ -118,6 +132,10 @@ public:
     fout.close();
   }
 
+  void ToggleDisplayStepResult() {
+    display_step_result = !display_step_result;
+  }
+
 protected:
   void InitializeParameters();
 
@@ -125,7 +143,9 @@ protected:
 
   void OptimizeForPosition();
 
-  void OptimizeForPose(int max_iterations);
+  void OptimizeForPose(int iteration);
+
+  void OptimizeForPose_opencv(int iteration);
 
   void OptimizeForFocalLength();
 
@@ -148,6 +168,8 @@ private:
   vector<int> indices;
   BasicMesh mesh;
 
+  QImage img;
+
   CameraParameters params_cam;
   ModelParameters params_model;
   ReconstructionParameters<Constraint> params_recon;
@@ -157,6 +179,7 @@ private:
 
   bool need_precise_result;
   bool is_parameters_initialized;
+  bool display_step_result;
 };
 
 template <typename Constraint>
@@ -223,7 +246,7 @@ bool SingleImageReconstructor<Constraint>::Reconstruct() {
   }
 
   for (int i = 0; i < num_contour_points; ++i) {
-    params_recon.cons[i].weight = 0.5;
+    params_recon.cons[i].weight = 1.0;
   }
 
   ColorStream(ColorOutput::Red) << "Initial Error = " << ComputeError();
@@ -256,7 +279,7 @@ bool SingleImageReconstructor<Constraint>::Reconstruct() {
 
       if(opt_mode & Pose) {
         for (int pose_opt_iter = 0; pose_opt_iter < 1; ++pose_opt_iter) {
-          OptimizeForPose(30);
+          OptimizeForPose(iters);
           UpdateContourIndices(iters);
         }
       }
@@ -280,13 +303,13 @@ bool SingleImageReconstructor<Constraint>::Reconstruct() {
 
       if(opt_mode & Pose) {
         for (int pose_opt_iter = 0; pose_opt_iter < 1; ++pose_opt_iter) {
-          OptimizeForPose(30);
+          OptimizeForPose(iters);
           UpdateContourIndices(iters);
         }
       }
 
       if(opt_mode & Identity) {
-        OptimizeForIdentity(iters*20);
+        OptimizeForIdentity(iters*10);
       }
 
       if(opt_mode & FocalLength) {
@@ -299,13 +322,34 @@ bool SingleImageReconstructor<Constraint>::Reconstruct() {
       E;
 
       // Adjust weights
-      prior.weight_Wid /= d_wid; prior.weight_Wid = max(prior.weight_Wid, 10.0);
+      prior.weight_Wid /= d_wid; prior.weight_Wid = max(prior.weight_Wid, 1.0);
       prior.weight_Wexp /= d_wexp; prior.weight_Wexp = max(prior.weight_Wexp, 1.0);
       for (int i = 0; i < num_contour_points; ++i) {
         params_recon.cons[i].weight = sqrt(params_recon.cons[i].weight);
       }
     }
     ColorStream(ColorOutput::Green) << "Iteration " << iters << " finished.";
+
+    // Visualize reconstruction result
+    if(display_step_result) {
+      auto tm = GetGeometry();
+      mesh.UpdateVertices(tm);
+      auto R = GetRotation();
+      auto T = GetTranslation();
+      auto cam_params = GetCameraParameters();
+
+      MeshVisualizer *w = new MeshVisualizer("reconstruction result " + std::to_string(iters), mesh);
+      w->BindConstraints(params_recon.cons);
+      w->BindImage(img);
+      w->BindLandmarks(GetIndices());
+      w->BindUpdatedLandmarks(GetUpdatedIndices());
+      w->SetMeshRotationTranslation(R, T);
+      w->SetCameraParameters(cam_params);
+
+      double scale = 640.0 / params_cam.image_size.y;
+      w->resize(params_cam.image_size.x * scale, params_cam.image_size.y * scale);
+      w->show();
+    }
   }
 
   cout << "Reconstruction done." << endl;
@@ -396,24 +440,183 @@ void SingleImageReconstructor<Constraint>::OptimizeForPosition() {
 }
 
 template<typename Constraint>
-void SingleImageReconstructor<Constraint>::OptimizeForPose(int max_iters) {
+void SingleImageReconstructor<Constraint>::OptimizeForPose_opencv(int iteration) {
   boost::timer::auto_cpu_timer timer_all(
     "[Pose optimization] Total time = %w seconds.\n");
 
-  ceres::Problem problem;
-  vector<double> params{params_model.R[0], params_model.R[1], params_model.R[2],
-                        params_model.T[0], params_model.T[1],
-                        params_model.T[2]};
+  glm::dmat4 projection_matrix;
+  glm::dmat4 rotation_matrix;
+  glm::dvec3 translation_vector;
 
   {
     boost::timer::auto_cpu_timer timer_construction(
       "[Pose optimization] Problem construction time = %w seconds.\n");
+
+    vector<cv::Point3f> mesh_points;
+    vector<cv::Point2f> image_points;
+    for (int i = 0; i < indices.size(); ++i) {
+      auto &model_i = model_projected[i];
+      auto tm = model_i.GetTM();
+      mesh_points.push_back(cv::Point3f(tm[0], tm[1], tm[2]));
+      image_points.push_back(cv::Point2f(params_recon.cons[i].data.x,
+                                         params_recon.cons[i].data.y));
+    }
+
+    cv::Mat mp(mesh_points);
+    cv::Mat ip(image_points);
+
+    params_cam.focal_length = 1000.0;
+    double _cm[9] = {params_cam.focal_length, 0, params_cam.image_size.x*0.5,
+                     0, params_cam.focal_length, params_cam.image_size.y*0.5,
+                     0,  0,  1};
+    cv::Mat camMatrix = cv::Mat(3, 3, CV_64FC1, _cm);
+    double _dc[] = {0, 0, 0, 0};
+
+    const double far = 1000.0, near = 0.01;
+#if 0
+    projection_matrix = glm::dmat4(params_cam.focal_length, 0, 0, 0,
+                                   0, params_cam.focal_length, 0, 0,
+                                   params_cam.image_size.x*0.5, params_cam.image_size.y*0.5, -(far+near)/(far-near), -1,
+                                   0,  0, -2.0*far*near/(far-near), 0);
+#else
+    projection_matrix = glm::dmat4(-params_cam.focal_length / (0.5 * params_cam.image_size.x), 0, 0, 0,
+                                   0, -params_cam.focal_length / (0.5 * params_cam.image_size.y), 0, 0,
+                                   0, 0, -(far+near)/(far-near), -1,
+                                   0, 0, -2.0*far*near/(far-near), 0);
+#endif
+    cout << glm::to_string(projection_matrix) << endl;
+
+    vector<double> rv(3), tv(3);
+    cv::Mat rvec = cv::Mat(rv);
+
+    auto Rmat = glm::eulerAngleYXZ(params_model.R[0], params_model.R[1], params_model.R[2]);
+    double _d[9] = {Rmat[0][0], Rmat[1][0], Rmat[2][0],
+                    Rmat[0][1], Rmat[1][1], Rmat[2][1],
+                    Rmat[0][2], Rmat[1][2], Rmat[2][2]}; //rotation: looking at -z axis
+    cv::Mat Rmat0 = cv::Mat(3, 3, CV_64FC1, _d);
+    cout << Rmat0 << endl;
+    cv::Rodrigues(Rmat0, rvec);
+
+    tv[0] = params_model.T[0]; tv[1] = params_model.T[1]; tv[2] = params_model.T[2];
+    cv::Mat tvec = cv::Mat(tv);
+
+    cv::solvePnP(mp, ip, camMatrix, cv::Mat(1, 4, CV_64FC1, _dc), rvec, tvec, false);
+
+    cv::Mat rmat(3, 3, CV_64FC1);
+    cv::Rodrigues(rvec, rmat);
+
+    double* _r = rmat.ptr<double>();
+  	printf("rotation mat: \n %.3f %.3f %.3f\n%.3f %.3f %.3f\n%.3f %.3f %.3f\n",
+  		_r[0],_r[1],_r[2],_r[3],_r[4],_r[5],_r[6],_r[7],_r[8]);
+    double* _t = tvec.ptr<double>();
+  	printf("trans vec: \n %.3f %.3f %.3f\n", _t[0], _t[1], _t[2]);
+
+    // rotation and translation
+    double _pm[12] = {_r[0],_r[1],_r[2], _t[0],
+  					          _r[3],_r[4],_r[5], _t[1],
+  					          _r[6],_r[7],_r[8], _t[2]};
+
+  	cv::Matx34d P(_pm);
+  	cv::Mat KP = camMatrix * cv::Mat(P);
+
+    translation_vector = glm::dvec3(_t[0], _t[1], _t[2]);
+    rotation_matrix = glm::dmat4(_r[0], _r[3], _r[6], 0,
+                                 _r[1], _r[4], _r[7], 0,
+                                 _r[2], _r[5], _r[8], 0,
+                                 0,     0,     0, 1);
+
+    glm::dmat4 view_matrix = glm::lookAt(glm::dvec3(0, 0, 0),
+                                         glm::dvec3(0, 0, -1),
+                                         glm::dvec3(0, 1, 0));
+
+    view_matrix = glm::dmat4(1.0);
+
+  	//reproject object points - check validity of found projection matrix
+  	for (int i=0; i<mp.rows; i++) {
+  		cv::Mat_<double> X = (cv::Mat_<double>(4,1) << mp.at<float>(i,0),mp.at<float>(i,1),mp.at<float>(i,2),1.0);
+  		cout << "point #" << i << ": " << mesh_points[i] << " -> ";
+  		cv::Mat_<double> opt_p = KP * X;
+  		cv::Point2f opt_p_img(opt_p(0)/opt_p(2),opt_p(1)/opt_p(2));
+  		cout << opt_p_img << " vs " << image_points[i] << endl;
+      glm::dvec4 p_opengl = projection_matrix * view_matrix * glm::translate(glm::dmat4(1.0), translation_vector) * rotation_matrix
+                          * glm::dvec4(mp.at<float>(i,0), mp.at<float>(i,1), mp.at<float>(i,2), 1.0);
+      p_opengl = p_opengl / p_opengl.w;
+      p_opengl.x = (p_opengl.x + 1.0) * params_cam.image_size.x * 0.5;
+      p_opengl.y = (p_opengl.y + 1.0) * params_cam.image_size.y * 0.5;
+      p_opengl.z = (p_opengl.z + 1.0) * 0.5;
+      cout << p_opengl.x << ' ' << p_opengl.y << ' ' << p_opengl.z << ' ' << p_opengl.w << endl;
+      glm::dvec3 q_opengl = glm::project(glm::dvec3(mp.at<float>(i,0), mp.at<float>(i,1), mp.at<float>(i,2)),
+                                         view_matrix * glm::translate(glm::dmat4(1.0), translation_vector) * rotation_matrix,
+                                         projection_matrix, glm::ivec4(0, 0, params_cam.image_size.x, params_cam.image_size.y));
+      cout << q_opengl.x << ' ' << q_opengl.y << ' ' << q_opengl.z << endl;
+  	}
+    cout << params_cam.image_size.x << ' ' << params_cam.image_size.y << endl;
+
+    cv::Mat mtxR, mtxQ, Qx, Qy, Qz;
+    cv::RQDecomp3x3(rmat, mtxR, mtxQ, Qx, Qy, Qz);
+
+    cout << Qx << endl;
+    cout << Qy << endl;
+    cout << Qz << endl;
+
+    params_model.T[0] = _t[0];
+    params_model.T[1] = _t[1];
+    params_model.T[2] = _t[2];
+
+    params_model.R[0] = acos(Qy.ptr<double>()[0]);
+    params_model.R[1] = acos(Qx.ptr<double>()[4]);
+    params_model.R[2] = acos(Qz.ptr<double>()[0]);
+  }
+
+  // Now visualize the result
+  if(1) {
+    auto tm = GetGeometry();
+    mesh.UpdateVertices(tm);
+    auto R = GetRotation();
+    auto T = GetTranslation();
+    auto cam_params = GetCameraParameters();
+
+    MeshVisualizer *w = new MeshVisualizer("pose estimation", mesh);
+    w->BindConstraints(params_recon.cons);
+    w->BindImage(img);
+    w->BindLandmarks(GetIndices());
+    w->BindUpdatedLandmarks(GetUpdatedIndices());
+
+    w->SetMeshRotationTranslation(R, T);
+    w->SetCameraParameters(cam_params);
+
+    w->SetRotationMatrixTranslationVector(rotation_matrix, translation_vector);
+
+    w->resize(params_cam.image_size.x, params_cam.image_size.y);
+    w->show();
+
+    QTest::qWait(100000);
+  }
+}
+
+template<typename Constraint>
+void SingleImageReconstructor<Constraint>::OptimizeForPose(int iteration) {
+  boost::timer::auto_cpu_timer timer_all(
+    "[Pose optimization] Total time = %w seconds.\n");
+
+  ceres::Problem problem;
+  vector<double> params{params_model.R[0], params_model.R[1], params_model.R[2], params_model.T[0], params_model.T[1], params_model.T[2]};
+
+  {
+    boost::timer::auto_cpu_timer timer_construction(
+      "[Pose optimization] Problem construction time = %w seconds.\n");
+
     for (int i = 0; i < indices.size(); ++i) {
       auto &model_i = model_projected[i];
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+      Constraint2D cons_i = params_recon.cons[i];
+      if(i<15) cons_i.weight = 0.3 * iteration;
+      else if(i>45 && i<64) cons_i.weight = 0.3 * iteration;
+      else cons_i.weight = 1.0;
+
 #if USE_ANALYTIC_COST_FUNCTIONS
       ceres::CostFunction *cost_function =
-        new PoseCostFunction_analytic(model_i, params_recon.cons[i],
+        new PoseCostFunction_analytic(model_i, cons_i,
                                       params_cam);
       problem.AddResidualBlock(cost_function, NULL, params.data(),
                                params.data() + 3);
@@ -421,7 +624,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose(int max_iters) {
       ceres::CostFunction *cost_function =
         new ceres::NumericDiffCostFunction<PoseCostFunction, ceres::CENTRAL, 1, 6>(
           new PoseCostFunction(model_i,
-                               params_recon.cons[i],
+                               cons_i,
                                params_cam));
       problem.AddResidualBlock(cost_function, NULL, params.data());
 #endif
@@ -431,7 +634,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose(int max_iters) {
     // Add a regularization term
     ceres::CostFunction *reg_cost_function =
       new ceres::NumericDiffCostFunction<PoseRegularizationTerm, ceres::CENTRAL, 1, 3>(
-        new PoseRegularizationTerm(100.0)
+        new PoseRegularizationTerm(1.0)
       );
     problem.AddResidualBlock(reg_cost_function, NULL, params.data());
 #endif
@@ -442,18 +645,13 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose(int max_iters) {
       "[Pose optimization] Problem solve time = %w seconds.\n");
 
     ceres::Solver::Options options;
-    options.max_num_iterations = max_iters;
+    options.max_num_iterations = 15;
 
     options.num_threads = 8;
     options.num_linear_solver_threads = 8;
 
-    /*
-    options.initial_trust_region_radius = 1.0;
-    options.min_trust_region_radius = 0.75;
-    options.max_trust_region_radius = 1.25;
-    options.min_lm_diagonal = 0.75;
-    options.max_lm_diagonal = 1.25;
-    */
+    //options.minimizer_type = ceres::LINE_SEARCH;
+    //options.line_search_direction_type = ceres::LBFGS;
 
     DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
     ceres::Solver::Summary summary;
@@ -671,7 +869,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
         new ExpressionRegularizationTerm(10.0)
       );
     reg_cost_function->AddParameterBlock(params.size()-1);
-    reg_cost_function->SetNumResiduals(1);
+    reg_cost_function->SetNumResiduals(params.size()-1);
     problem.AddResidualBlock(reg_cost_function, NULL, params.data()+1);
 
     for(int i=0;i<params.size()-1;++i) {
@@ -690,11 +888,16 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
     options.num_threads = 8;
     options.num_linear_solver_threads = 8;
 
-    options.initial_trust_region_radius = 10.0;
-    options.min_trust_region_radius = 5.0;
-    options.max_trust_region_radius = 20.0;
+#if 1
+    options.initial_trust_region_radius = 1.0;
+    options.min_trust_region_radius = 0.5;
+    options.max_trust_region_radius = 2.0;
     options.min_lm_diagonal = 1.0;
     options.max_lm_diagonal = 1.0;
+#else
+    options.minimizer_type = ceres::LINE_SEARCH;
+    options.line_search_direction_type = ceres::LBFGS;
+#endif
 
     DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
     ceres::Solver::Summary summary;
@@ -703,7 +906,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
 
     //if (need_precise_result)
     {
-      options.max_num_iterations = 5;
+      options.max_num_iterations = 2;
       options.minimizer_type = ceres::LINE_SEARCH;
       options.line_search_direction_type = ceres::LBFGS;
       Solve(options, &problem, &summary);
@@ -768,6 +971,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
       problem.AddResidualBlock(cost_function, NULL, params.data());
     }
 
+    // Prior term
     ceres::DynamicNumericDiffCostFunction<PriorCostFunction> *prior_cost_function =
       new ceres::DynamicNumericDiffCostFunction<PriorCostFunction>(
         new PriorCostFunction(prior.Wid_avg, prior.inv_sigma_Wid,
@@ -775,33 +979,45 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
     prior_cost_function->AddParameterBlock(params.size());
     prior_cost_function->SetNumResiduals(1);
     problem.AddResidualBlock(prior_cost_function, NULL, params.data());
+
+    // Regularization term, minimize the norm of the weight vector
+    ceres::DynamicNumericDiffCostFunction<IdentityRegularizationTerm> *reg_cost_function =
+      new ceres::DynamicNumericDiffCostFunction<IdentityRegularizationTerm>(
+        new IdentityRegularizationTerm(10.0)
+      );
+    reg_cost_function->AddParameterBlock(params.size());
+    reg_cost_function->SetNumResiduals(1);
+    problem.AddResidualBlock(reg_cost_function, NULL, params.data());
+
+    // Bounds
+    for(int i=0;i<params.size();++i) {
+      problem.SetParameterLowerBound(params.data(), i, prior.Uid_min(i));
+      problem.SetParameterUpperBound(params.data(), i, prior.Uid_max(i));
+    }
   }
 
   // Solve it
-  for(int iii=0;iii<iteration;++iii) {
+  {
     boost::timer::auto_cpu_timer timer_solve(
       "[Identity optimization] Problem solve time = %w seconds.\n");
     ceres::Solver::Options options;
-    options.max_num_iterations = 1;
+    options.max_num_iterations = iteration;
 
     options.num_threads = 8;
     options.num_linear_solver_threads = 8;
 
-    double under_relax_factor;
+    double under_relax_factor = 0.5;
 
-    if(iii<iteration/5.0*4.0) {
-      under_relax_factor = 0.1;
-      options.initial_trust_region_radius = 10.0;
-      options.min_trust_region_radius = 5.0;
-      options.max_trust_region_radius = 20.0;
-      options.min_lm_diagonal = 1.0;
-      options.max_lm_diagonal = 1.0;
-    } else {
-      under_relax_factor = 1.0;
-      options.max_num_iterations = 5;
-      options.minimizer_type = ceres::LINE_SEARCH;
-      options.line_search_direction_type = ceres::LBFGS;
-    }
+#if 1
+    options.initial_trust_region_radius = 1.0;
+    options.min_trust_region_radius = 0.75;
+    options.max_trust_region_radius = 1.25;
+    options.min_lm_diagonal = 1.0;
+    options.max_lm_diagonal = 1.0;
+#else
+    options.minimizer_type = ceres::LINE_SEARCH;
+    options.line_search_direction_type = ceres::LBFGS;
+#endif
 
     DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
     ceres::Solver::Summary summary;
@@ -862,11 +1078,11 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices(int iterations) 
       // Compute the dot product of normal and view direction
       glm::dvec3 view_vector(0, 0, -1);
       dot_products[i] = glm::dot(glm::normalize(glm::dvec3(n.x, n.y, n.z)),
-                                 view_vector);
+                                 glm::normalize(view_vector));
 
       dot_products[i] = fabs(dot_products[i]);
 
-      if(n.z < 0) dot_products[i] = 1e6;
+      //if(n.z < 0) dot_products[i] = 1e6;
     }
 
     auto min_iter = std::min_element(dot_products.begin(), dot_products.end());
@@ -949,7 +1165,7 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices(int iterations) 
       dists[j] = dx * dx + dy * dy;
     }
     auto min_iter = std::min_element(dists.begin(), dists.end());
-    double min_acceptable_dist = 50 * iterations * iterations;
+    double min_acceptable_dist = 100 * iterations * iterations;
     if (sqrt(*min_iter) > min_acceptable_dist) {
       //cout << sqrt(*min_iter) << endl;
       continue;

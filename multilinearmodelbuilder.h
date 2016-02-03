@@ -86,7 +86,7 @@ public:
     tcore.Write("blendshape_core.tensor");
     cout << "writing U tensors ..." << endl;
     for(int i=0;i<tus.size();i++) {
-      tus[i].Write("blendshape_u_" + toString(ms[i]) + ".tensor");
+      tus[i].Write("blendshape_u_" + std::to_string(ms[i]) + ".tensor");
     }
 
     cout << "Validation begins ..." << endl;

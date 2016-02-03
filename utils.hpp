@@ -83,13 +83,6 @@ ostream& print2DArray(T** A, int rows, int cols, ostream& os = cout)
   return os;
 }
 
-template <typename T>
-string toString(const T& val) {
-  stringstream ss;
-  ss << val;
-  return ss.str();
-}
-
 // debugging related
 // dummy
 static void debug(){}

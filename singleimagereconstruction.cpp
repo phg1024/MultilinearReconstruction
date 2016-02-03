@@ -48,6 +48,7 @@ int main(int argc, char *argv[])
   QImage img = image_points_pair.first;
   auto constraints = image_points_pair.second;
 
+  recon.SetImage(img);
   recon.SetImageSize(img.width(), img.height());
   recon.SetConstraints(constraints);
 
@@ -60,6 +61,7 @@ int main(int argc, char *argv[])
   // Visualize reconstruction result
   auto tm = recon.GetGeometry();
   mesh.UpdateVertices(tm);
+  mesh.ComputeNormals();
   auto R = recon.GetRotation();
   auto T = recon.GetTranslation();
   auto cam_params = recon.GetCameraParameters();
