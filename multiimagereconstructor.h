@@ -111,8 +111,6 @@ private:
 
 template <typename Constraint>
 bool MultiImageReconstructor<Constraint>::Reconstruct() {
-  // TODO Work on this function.
-
   // Initialize the parameter sets
   param_sets.resize(image_points_pairs.size());
   for(size_t i=0;i<param_sets.size();++i) {
@@ -147,7 +145,12 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
   //  3. Convergence test. If not converged, goto step 1.
   const int max_iters_main_loop = 3;
   int iters_main_loop = 0;
+
+  vector<MatrixXd> identity_weights_history;
+  vector<VectorXd> identity_weights_centroid_history;
+
   while(iters_main_loop++ < 3){
+
     // Single image reconstruction step
     for(size_t i=0;i<num_images;++i) {
       single_recon.SetMesh(param_sets[i].mesh);
@@ -192,6 +195,8 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
     for(int i=0;i<num_images;++i) {
       identity_weights.col(i) = param_sets[i].model.Wid;
     }
+
+    identity_weights_history.push_back(identity_weights);
 
     // Remove outliers
     vector<int> consistent_set = StatsUtils::FindConsistentSet(identity_weights, 0.5);
@@ -316,19 +321,35 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
 
         // Update the identity weights
         for(auto& param : param_sets) {
-          param.model.Wid = identity_centroid;
+          param.model.Wid = params;
 
           // Also update geometry if needed
           {
             model.ApplyWeights(param.model.Wid, param.model.Wexp);
             param.mesh.UpdateVertices(model.GetTM());
+            param.mesh.ComputeNormals();
           }
         }
+
+        identity_weights_centroid_history.push_back(params);
       }
     }
   } // end of main reconstruction loop
 
+  // Output the reconstructed identity weights
+  {
+    for(int i=0;i<identity_weights_history.size();++i) {
+      ofstream fout("identity_matrix" + std::to_string(i) + ".txt");
+      fout << identity_weights_history[i];
+      fout.close();
+    }
 
+    for(int i=0;i<identity_weights_centroid_history.size();++i) {
+      ofstream fout("identity_centroid" + std::to_string(i) + ".txt");
+      fout << identity_weights_centroid_history[i];
+      fout.close();
+    }
+  }
 
   // Visualize the final reconstruction results
   for(size_t i=0;i<num_images;++i) {

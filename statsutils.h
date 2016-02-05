@@ -63,26 +63,61 @@ static MatrixXd normalize(const MatrixXd& mat) {
   return normalized_mat;
 }
 
-static vector<int> FindConsistentSet(const MatrixXd& identity_weights,
-                                     double radius) {
-#if 1
-  // Compute Pearson's correlation among identity weights
-  MatrixXd metric_mat = StatsUtils::corr(identity_weights);
-#else
-  // Compute normalized Eucledian distance among identity weights
-  MatrixXd metric_mat = MatrixXd::Ones(num_images, num_images) -
-    StatsUtils::normalize(StatsUtils::dist(identity_weights.transpose()));
-#endif
+static vector<int> FindConsistentSet(const MatrixXd& x, double h, int k,
+                                     VectorXd* centroid_out=nullptr) {
+  // Meanshift until converged
+  int ndims = x.rows(), nsamples = x.cols();
+  MatrixXd m(ndims, nsamples);
+  MatrixXd y = x;
+  const double th = 1e-6;
+  const int max_iters = 100;
+  bool done = false;
 
-  // Pick a coherent subset
+  int iters = 0;
+  double ms = 0;
+  while(!done && iters < max_iters) {
+    for(int i=0;i<nsamples;++i) {
+      double gsum = 0;
+      VectorXd yi = VectorXd::Zeros(ndims);
+      for(int j=0;j<nsamples;++j) {
+        if(j==i) continue;
+        else {
+          VectorXd dj = (y.col(i) - x.col(j))/h;
+          double gj = exp(-dj.transpose() * dj);
+          gsum += gj;
+          yi += gj * x.col(j);
+        }
+      }
+      m.col(i) = yi / (gsum + 1e-8);
+    }
 
-  // Compute the centroid of the coherent subset
+    ms = m.maxCoeff();
 
-  // Find the consistent set using the centroid and radius
+    if(ms < th) {
+      cout << "ms = " << ms << endl;
+      done = true;
+    } else {
+      y = m;
+      ++iters;
+      cout << "iteration " << iters << ": " << ms << endl;
+    }
+  }
 
-  // @TODO Use the input set for the moment. Need to work on this later.
-  vector<int> consistent_set;
-  for(int i=0;i<identity_weights.cols();++i) consistent_set.push_back(i);
+  // Find the highest density cluster, compute its centroid
+  vector<double> d(nsamples, 0);
+  for(int i=0;i<nsamples;++i) {
+    for(int j=0;j<nsamples;++j) {
+      d[i] += exp(-(m.col(i) - m.col(j)).squaredNorm());
+    }
+  }
+
+  if(centroid_out != nullptr) {
+    // Write the centroid to the output
+  }
+
+  // Compute the distance between the centroid and each input point
+
+  // Pick the k nearest points as the consistent set
 
   return consistent_set;
 }
