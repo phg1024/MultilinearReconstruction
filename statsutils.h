@@ -78,7 +78,7 @@ static vector<int> FindConsistentSet(const MatrixXd& x, double h, int k,
   while(!done && iters < max_iters) {
     for(int i=0;i<nsamples;++i) {
       double gsum = 0;
-      VectorXd yi = VectorXd::Zeros(ndims);
+      VectorXd yi = VectorXd::Zero(ndims);
       for(int j=0;j<nsamples;++j) {
         if(j==i) continue;
         else {
@@ -107,17 +107,41 @@ static vector<int> FindConsistentSet(const MatrixXd& x, double h, int k,
   vector<double> d(nsamples, 0);
   for(int i=0;i<nsamples;++i) {
     for(int j=0;j<nsamples;++j) {
-      d[i] += exp(-(m.col(i) - m.col(j)).squaredNorm());
+      d[i] += exp(-(y.col(i) - y.col(j)).squaredNorm());
     }
   }
 
+  double max_d = 0;
+  int max_idx = -1;
+  for(int i=0;i<nsamples;++i) {
+    if(d[i] > max_d) {
+      max_d = d[i];
+      max_idx = i;
+    }
+  }
+
+  VectorXd centroid = y.col(max_idx);
   if(centroid_out != nullptr) {
     // Write the centroid to the output
+    *centroid_out = centroid;
   }
 
   // Compute the distance between the centroid and each input point
+  vector<pair<int, double>> dists(nsamples);
+  for(int i=0;i<nsamples;++i) {
+    dists[i] = make_pair(i, (y.col(i) - centroid).norm());
+  }
+
+  std::sort(dists.begin(), dists.end(),
+            [](const pair<int, double>& a, const pair<int, double>& b) {
+              return a.second < b.second;
+            });
 
   // Pick the k nearest points as the consistent set
+  vector<int> consistent_set;
+  for(int i=0;i<k;++i) {
+    consistent_set.push_back(dists[i].first);
+  }
 
   return consistent_set;
 }

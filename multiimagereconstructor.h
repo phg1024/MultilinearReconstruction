@@ -149,10 +149,13 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
   vector<MatrixXd> identity_weights_history;
   vector<VectorXd> identity_weights_centroid_history;
 
+  vector<int> consistent_set(num_images);
+  for(int i=0;i<num_images;++i) consistent_set[i] = i;
+
   while(iters_main_loop++ < 3){
 
     // Single image reconstruction step
-    for(size_t i=0;i<num_images;++i) {
+    for(int i=0;i<num_images;++i) {
       single_recon.SetMesh(param_sets[i].mesh);
       single_recon.SetIndices(param_sets[i].indices);
       single_recon.SetImageSize(param_sets[i].recon.imageWidth, param_sets[i].recon.imageHeight);
@@ -199,15 +202,23 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
     identity_weights_history.push_back(identity_weights);
 
     // Remove outliers
-    vector<int> consistent_set = StatsUtils::FindConsistentSet(identity_weights, 0.5);
+    #if 1
+    const double ratios[] = {0.0, 0.2, 0.4, 0.6};
+    consistent_set = StatsUtils::FindConsistentSet(identity_weights, 0.5, ratios[iters_main_loop] * num_images, &identity_centroid);
     assert(consistent_set.size() > 0);
-
+    for(auto i : consistent_set) {
+      cout << i << ' ';
+    }
+    cout << endl;
+    #else
     // Compute the centroid of the consistent set
     identity_centroid = VectorXd::Zero(param_sets[0].model.Wid.rows());
     for(auto i : consistent_set) {
+      cout << i << endl;
       identity_centroid += param_sets[i].model.Wid;
     }
     identity_centroid /= consistent_set.size();
+    #endif
 
     // Update the identity weights for all images
     for(auto& param : param_sets) {
@@ -215,10 +226,19 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
     }
 
     // Joint reconstruction step, obtain refined identity weights
-    const int num_iters_joint_optimization = 3;
-    for(int i=0;i<num_iters_joint_optimization; ++i){
+    int num_iters_joint_optimization = (iters_main_loop == max_iters_main_loop)?4:3;
+
+    for(int iters_joint_optimization=0;
+        iters_joint_optimization<num_iters_joint_optimization;
+        ++iters_joint_optimization){
       // [Joint reconstruction] step 1: estimate pose and expression weights individually
-      for(size_t i=0;i<num_images;++i) {
+      if((iters_joint_optimization == num_iters_joint_optimization - 1) && (iters_main_loop == max_iters_main_loop)) {
+        // In the final iteration, no need to refine the identity weights anymore
+        consistent_set.resize(num_images);
+        for(int i=0;i<num_images;++i) consistent_set[i] = i;
+      }
+
+      for(auto i : consistent_set) {
         single_recon.SetMesh(param_sets[i].mesh);
         single_recon.SetIndices(param_sets[i].indices);
         single_recon.SetImageSize(param_sets[i].recon.imageWidth, param_sets[i].recon.imageHeight);
@@ -258,13 +278,18 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
         }
       }
 
+      if((iters_joint_optimization == num_iters_joint_optimization - 1) && (iters_main_loop == max_iters_main_loop)) {
+        // In the final iteration, no need to refine the identity weights anymore
+        break;
+      }
+
       // [Joint reconstruction] step 2: estimate identity weights jointly
       {
         ceres::Problem problem;
         VectorXd params = param_sets[0].model.Wid;
 
         // Add constraints from each image
-        for(int i=0;i<num_images;++i) {
+        for(auto i : consistent_set) {
           // Create a projected model first
           vector<MultilinearModel> model_projected_i(param_sets[i].indices.size());
           for(int j=0;j<param_sets[i].indices.size();++j) {
@@ -300,7 +325,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
         ceres::DynamicNumericDiffCostFunction<PriorCostFunction> *prior_cost_function =
           new ceres::DynamicNumericDiffCostFunction<PriorCostFunction>(
             new PriorCostFunction(prior.Wid_avg, prior.inv_sigma_Wid,
-                                  prior.weight_Wid * num_images));
+                                  prior.weight_Wid * consistent_set.size()));
         prior_cost_function->AddParameterBlock(params.size());
         prior_cost_function->SetNumResiduals(1);
         problem.AddResidualBlock(prior_cost_function, NULL, params.data());
@@ -352,7 +377,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
   }
 
   // Visualize the final reconstruction results
-  for(size_t i=0;i<num_images;++i) {
+  for(int i=0;i<num_images;++i) {
     // Visualize the reconstruction results
     MeshVisualizer* w = new MeshVisualizer("reconstruction result", param_sets[i].mesh);
     w->BindConstraints(image_points_pairs[i].second);
