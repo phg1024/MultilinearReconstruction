@@ -1,5 +1,4 @@
 #include "OffscreenMeshVisualizer.h"
-#include "../utils.h"
 
 #include <GL/freeglut_std.h>
 #include <glm/gtc/matrix_transform.hpp>

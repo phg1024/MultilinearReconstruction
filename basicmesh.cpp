@@ -121,3 +121,26 @@ void BasicMesh::UpdateVertices(const VectorXd &vertices) {
     verts(i, 2) = vertices(offset+2);
   }
 }
+
+void BasicMesh::Write(const string &filename) {
+  string content;
+  // write verts
+  for (int i = 0,offset=0; i < NumVertices(); ++i) {
+    content += "v ";
+    content += to_string(verts(i, 0)) + " "; ++offset;
+    content += to_string(verts(i, 1)) + " "; ++offset;
+    content += to_string(verts(i, 2)) + "\n"; ++offset;
+  }
+
+  // write faces
+  for (int i = 0, offset = 0; i < NumFaces(); ++i) {
+    content += "f ";
+    content += to_string(faces(i, 0) + 1) + " "; ++offset;
+    content += to_string(faces(i, 1) + 1) + " "; ++offset;
+    content += to_string(faces(i, 2) + 1) + "\n"; ++offset;
+  }
+
+  ofstream fout(filename);
+  fout << content << endl;
+  fout.close();
+}
