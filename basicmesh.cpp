@@ -34,6 +34,7 @@ bool BasicMesh::LoadOBJMesh(const string& filename) {
   }
 
   auto T = loader.getTexcoords();
+  bool has_texcoords = T.size() > 0;
   texcoords.resize(T.size(), 2);
   for(int i=0;i<T.size();++i) {
     texcoords(i, 0) = T[i].x;
@@ -53,7 +54,9 @@ bool BasicMesh::LoadOBJMesh(const string& filename) {
   for (int i = 0, faceidx = 0; i < F.size(); ++i) {
     for (int j = 1; j < F[i].v.size()-1; ++j, ++faceidx) {
       faces.row(faceidx) = Vector3i(F[i].v[0], F[i].v[j], F[i].v[j+1]);
-      face_tex_index.row(faceidx) = Vector3i(F[i].t[0], F[i].t[j], F[i].t[j+1]);
+      if(has_texcoords) {
+        face_tex_index.row(faceidx) = Vector3i(F[i].t[0], F[i].t[j], F[i].t[j+1]);
+      }
     }
   }
 
