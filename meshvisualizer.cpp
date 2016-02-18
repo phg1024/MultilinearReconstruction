@@ -188,9 +188,10 @@ void MeshVisualizer::paintGL() {
         auto set_diffuse_color_by_normal = [=](Vector3d n0) {
           glm::dvec4 n = glm::transpose(glm::inverse(rotation_matrix)) * glm::dvec4(n0[0], n0[1], n0[2], 1.0);
           if(n.z > 0) {
-            GLfloat mat_diffuse[] = {(n.x + 1.0) * 0.5,
-                                      (n.y + 1.0) * 0.5,
-                                      (n.z + 1.0) * 0.5, static_cast<float>(face_alpha)};
+            GLfloat mat_diffuse[] = {static_cast<float>(n.x + 1.0) * 0.5f,
+                                     static_cast<float>(n.y + 1.0) * 0.5f,
+                                     static_cast<float>(n.z + 1.0) * 0.5f,
+                                     static_cast<float>(face_alpha)};
             glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
           } else {
             GLfloat mat_diffuse[] = {0.05, 0.05, 0.05, static_cast<float>(face_alpha)};

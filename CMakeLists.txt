@@ -93,19 +93,23 @@ target_link_libraries(meshvisualizer
 add_library(tensor tensor.hpp)
 target_link_libraries(tensor ${MKLLIBS})
 
+add_library(ioutilities ioutilities.cpp)
+target_link_libraries(ioutilities Qt5::Core Qt5::Widgets)
+
 # Single image reconstruction program
 add_executable(SingleImageReconstruction singleimagereconstruction.cpp singleimagereconstructor.hpp utils.hpp ioutilities.h)
 target_link_libraries(SingleImageReconstruction
                       meshvisualizer
                       multilinearmodel
                       basicmesh
+                      ioutilities
                       tensor
                       Qt5::Core
                       Qt5::Widgets
                       Qt5::OpenGL
 		              Qt5::Test
-											${MKLLIBS}
-											${PhGLib})
+                      ${MKLLIBS}
+                      ${PhGLib})
 
 # Multiple image reconstruction program
 add_executable(MultiImageReconstruction multiimagereconstruction.cpp multiimagereconstructor.h singleimagereconstructor.hpp utils.hpp multiimagereconstruction.cpp ioutilities.h)
@@ -113,6 +117,7 @@ target_link_libraries(MultiImageReconstruction
         meshvisualizer
         multilinearmodel
         basicmesh
+        ioutilities
         tensor
         Qt5::Core
         Qt5::Widgets
