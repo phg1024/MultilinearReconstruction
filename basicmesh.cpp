@@ -125,6 +125,81 @@ void BasicMesh::UpdateVertices(const VectorXd &vertices) {
   }
 }
 
+void BasicMesh::Subdivide() {
+  // For each edge, compute its center point
+  struct edge_t {
+    edge_t() {}
+    edge_t(int s, int t) : s(s), t(t) {}
+    bool operator<(const edge_t& other) const {
+      if(s < other.s) return true;
+      else if( s > other.s ) return false;
+      else return t < other.t;
+    }
+    int s, t;
+  };
+  map<edge_t, Vector3d> midpoints;
+
+  const int num_faces = NumFaces();
+  for(int i=0;i<num_faces;++i) {
+    auto vidx0 = faces(i, 0);
+    auto vidx1 = faces(i, 1);
+    auto vidx2 = faces(i, 2);
+
+    auto v0 = Vector3d(verts.row(vidx0));
+    auto v1 = Vector3d(verts.row(vidx1));
+    auto v2 = Vector3d(verts.row(vidx2));
+
+    if(midpoints.count(edge_t(vidx0, vidx1)) == 0
+    && midpoints.count(edge_t(vidx1, vidx0)) == 0)
+      midpoints.insert(make_pair(edge_t(vidx0, vidx1), 0.5 * (v0 + v1)));
+
+    if(midpoints.count(edge_t(vidx1, vidx2)) == 0
+    && midpoints.count(edge_t(vidx2, vidx1)) == 0)
+      midpoints.insert(make_pair(edge_t(vidx1, vidx2), 0.5 * (v1 + v2)));
+
+    if(midpoints.count(edge_t(vidx2, vidx0)) == 0
+    && midpoints.count(edge_t(vidx0, vidx2)) == 0)
+      midpoints.insert(make_pair(edge_t(vidx2, vidx0), 0.5 * (v2 + v0)));
+  }
+
+  // Now create a new set of vertices and faces
+  const int num_verts = NumVertices() + midpoints.size();
+  MatrixX3d new_verts(num_verts, 3);
+  new_verts.topRows(NumVertices()) = verts;
+  map<edge_t, int> midpoints_indices;
+  int new_idx = NumVertices();
+  for(auto p : midpoints) {
+    midpoints_indices.insert(make_pair(p.first, new_idx));
+    midpoints_indices.insert(make_pair(edge_t(p.first.t, p.first.s), new_idx));
+
+    new_verts.row(new_idx) = p.second;
+    ++new_idx;
+  }
+
+  MatrixX3i new_faces(num_faces*4, 3);
+  for(int i=0;i<num_faces;++i) {
+    auto vidx0 = faces(i, 0);
+    auto vidx1 = faces(i, 1);
+    auto vidx2 = faces(i, 2);
+
+    int nvidx01 = midpoints_indices[edge_t(vidx0, vidx1)];
+    int nvidx12 = midpoints_indices[edge_t(vidx1, vidx2)];
+    int nvidx20 = midpoints_indices[edge_t(vidx2, vidx0)];
+
+    // add the 4 new faces
+    new_faces.row(i*4+0) = Vector3i(vidx0, nvidx01, nvidx20);
+    new_faces.row(i*4+1) = Vector3i(nvidx20, nvidx01, nvidx12);
+    new_faces.row(i*4+2) = Vector3i(nvidx20, nvidx12, vidx2);
+    new_faces.row(i*4+3) = Vector3i(nvidx01, vidx1, nvidx12);
+  }
+
+  verts = new_verts;
+  faces = new_faces;
+
+  // Update the normals after subdivision
+  ComputeNormals();
+}
+
 void BasicMesh::Write(const string &filename) {
   string content;
   // write verts

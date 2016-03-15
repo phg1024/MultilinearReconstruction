@@ -63,5 +63,7 @@ target_link_libraries(test_mesh_visualizer basicmesh meshvisualizer
 add_executable(test_tensors test_tensors.cpp)
 target_link_libraries(test_tensors tensor)
 
+add_executable(test_subdivision test_subdivision.cpp)
+target_link_libraries(test_subdivision basicmesh)
 
 link_directories(..)

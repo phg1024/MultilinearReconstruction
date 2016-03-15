@@ -54,6 +54,7 @@ public:
   bool LoadOBJMesh(const string &filename);
   void ComputeNormals();
   void UpdateVertices(const VectorXd& vertices);
+  void Subdivide();
 
   vector<int> GetNeighbors() const;
 
