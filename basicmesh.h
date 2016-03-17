@@ -10,6 +10,10 @@
 #include <eigen3/Eigen/Dense>
 #include "common.h"
 
+#include <OpenMesh/Core/IO/MeshIO.hh>
+#include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
+typedef OpenMesh::TriMesh_ArrayKernelT<>  HalfEdgeMesh;
+
 using namespace std;
 using namespace Eigen;
 
@@ -119,6 +123,8 @@ public:
     return P;
   }
 
+  void BuildHalfEdgeMesh();
+
 private:
   unordered_map<int, int> vert_face_map;
 
@@ -129,6 +135,21 @@ private:
   // Per-face normal vector
   MatrixX3d norms;
   MatrixX3d vertex_norms;
+
+  template <typename Handle>
+  struct HandleHasher {
+    std::size_t operator()(const Handle& h) const {
+      return h.idx();
+    }
+  };
+
+  // This mesh stored in half edge data structure
+  // Makes mesh manipulation easier
+  vector<HalfEdgeMesh::VertexHandle> vhandles;
+  unordered_map<HalfEdgeMesh::VertexHandle, int, HandleHasher<HalfEdgeMesh::VertexHandle>> vhandles_map;
+  vector<HalfEdgeMesh::FaceHandle> fhandles;
+  unordered_map<HalfEdgeMesh::FaceHandle, int, HandleHasher<HalfEdgeMesh::FaceHandle>> fhandles_map;
+  HalfEdgeMesh hemesh;
 };
 
 #endif // BASICMESH_H

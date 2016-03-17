@@ -125,7 +125,54 @@ void BasicMesh::UpdateVertices(const VectorXd &vertices) {
   }
 }
 
+void BasicMesh::BuildHalfEdgeMesh() {
+  vhandles.clear();
+  vhandles_map.clear();
+  fhandles.clear();
+  fhandles_map.clear();
+  hemesh.clear();
+
+  const int num_verts = NumVertices();
+  const int num_faces = NumFaces();
+
+  vhandles.resize(num_verts);
+  for(int i=0;i<num_verts;++i) {
+    const auto& pi = verts.row(i);
+    vhandles[i] = hemesh.add_vertex(HalfEdgeMesh::Point(pi[0], pi[1], pi[2]));
+    vhandles_map[vhandles[i]] = i;
+  }
+
+  fhandles.resize(num_faces);
+  for(int i=0;i<num_faces;++i) {
+    const auto& fi = faces.row(i);
+    fhandles[i] = hemesh.add_face(
+      vector<HalfEdgeMesh::VertexHandle>{vhandles[fi[0]],
+                                         vhandles[fi[1]],
+                                         vhandles[fi[2]]});
+    fhandles_map[fhandles[i]] = i;
+  }
+
+  // For debugging
+  #if 0
+  try
+  {
+    if ( !OpenMesh::IO::write_mesh(hemesh, "mesh.obj") )
+    {
+      std::cerr << "Cannot write mesh to file 'output.off'" << std::endl;
+      exit(1);
+    }
+  }
+  catch( std::exception& x )
+  {
+    std::cerr << x.what() << std::endl;
+    exit(1);
+  }
+  #endif
+}
+
 void BasicMesh::Subdivide() {
+  // Loop subdivision
+
   // For each edge, compute its center point
   struct edge_t {
     edge_t() {}
@@ -137,35 +184,85 @@ void BasicMesh::Subdivide() {
     }
     int s, t;
   };
-  map<edge_t, Vector3d> midpoints;
 
   const int num_faces = NumFaces();
-  for(int i=0;i<num_faces;++i) {
-    auto vidx0 = faces(i, 0);
-    auto vidx1 = faces(i, 1);
-    auto vidx2 = faces(i, 2);
 
-    auto v0 = Vector3d(verts.row(vidx0));
-    auto v1 = Vector3d(verts.row(vidx1));
-    auto v2 = Vector3d(verts.row(vidx2));
+  map<edge_t, Vector3d> midpoints;
 
-    if(midpoints.count(edge_t(vidx0, vidx1)) == 0
-    && midpoints.count(edge_t(vidx1, vidx0)) == 0)
-      midpoints.insert(make_pair(edge_t(vidx0, vidx1), 0.5 * (v0 + v1)));
+  // iterate over all edges
+  for (HalfEdgeMesh::EdgeIter e=hemesh.edges_begin(); e!=hemesh.edges_end(); ++e) {
+    auto heh = hemesh.halfedge_handle(e, 0);
+    auto hefh = hemesh.halfedge_handle(e, 1);
 
-    if(midpoints.count(edge_t(vidx1, vidx2)) == 0
-    && midpoints.count(edge_t(vidx2, vidx1)) == 0)
-      midpoints.insert(make_pair(edge_t(vidx1, vidx2), 0.5 * (v1 + v2)));
+    auto v0h = hemesh.to_vertex_handle(heh);
+    auto v1h = hemesh.to_vertex_handle(hefh);
 
-    if(midpoints.count(edge_t(vidx2, vidx0)) == 0
-    && midpoints.count(edge_t(vidx0, vidx2)) == 0)
-      midpoints.insert(make_pair(edge_t(vidx2, vidx0), 0.5 * (v2 + v0)));
+    int v0idx = vhandles_map[v0h];
+    int v1idx = vhandles_map[v1h];
+
+    auto v0 = verts.row(v0idx);
+    auto v1 = verts.row(v1idx);
+
+    if(hemesh.is_boundary(*e)) {
+      // simply compute the mid point
+      midpoints.insert(make_pair(edge_t(v0idx, v1idx), 0.5 * (v0 + v1)));
+    } else {
+      // use [1/8, 3/8, 3/8, 1/8] weights
+      auto v2h = hemesh.to_vertex_handle(hemesh.next_halfedge_handle(heh));
+      auto v3h = hemesh.to_vertex_handle(hemesh.next_halfedge_handle(hefh));
+
+      int v2idx = vhandles_map[v2h];
+      int v3idx = vhandles_map[v3h];
+
+      auto v2 = verts.row(v2idx);
+      auto v3 = verts.row(v3idx);
+
+      midpoints.insert(make_pair(edge_t(v0idx, v1idx), (v0 * 3 + v1 * 3 + v2 + v3) / 8.0));
+    }
   }
 
   // Now create a new set of vertices and faces
   const int num_verts = NumVertices() + midpoints.size();
   MatrixX3d new_verts(num_verts, 3);
-  new_verts.topRows(NumVertices()) = verts;
+
+  // Smooth these points
+  for(int i=0;i<NumVertices();++i) {
+    auto vh = vhandles[i];
+    if(hemesh.is_boundary(vh)) {
+      // use [1/8, 6/8, 1/8] weights
+      auto heh = hemesh.halfedge_handle(vh);
+      if(heh.is_valid()) {
+        assert(hemesh.is_boundary(hemesh.edge_handle(heh)));
+
+        auto prev_heh = hemesh.prev_halfedge_handle(heh);
+
+        auto to_vh = hemesh.to_vertex_handle(heh);
+        auto from_vh = hemesh.from_vertex_handle(prev_heh);
+
+        Vector3d p = 6 * verts.row(i);
+        p += verts.row(vhandles_map[to_vh]);
+        p += verts.row(vhandles_map[from_vh]);
+        p /= 8.0;
+        new_verts.row(i) = p;
+      }
+    } else {
+      // loop through the neighbors and count them
+      int valence = 0;
+      Vector3d p(0, 0, 0);
+      for(auto vvit = hemesh.vv_iter(vh); vvit.is_valid(); ++vvit) {
+        ++valence;
+        p += verts.row(vhandles_map[*vvit]);
+      }
+      const double PI = 3.1415926535897;
+      const double wa = (0.375 + 0.25 * cos(2.0 * PI / valence));
+      const double w = (0.625 - wa * wa);
+      p *= (w / valence);
+      p += verts.row(i) * (1 - w);
+      new_verts.row(i) = p;
+    }
+  }
+
+  // Add the midpoints
   map<edge_t, int> midpoints_indices;
   int new_idx = NumVertices();
   for(auto p : midpoints) {

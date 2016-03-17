@@ -68,6 +68,13 @@ find_package(Ceres REQUIRED)
 include_directories(${CERES_INCLUDE_DIRS})
 link_libraries(${CERES_LIBRARIES})
 
+# Openmesh
+set(OPENMESH_DIR "/home/phg/SDKs/OpenMesh-5.1")
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${OPENMESH_DIR}/cmake)
+include(ACGCommon)
+include_directories("/usr/local/include")
+link_libraries(OpenMeshCore OpenMeshTools)
+
 # Targets
 add_library(multilinearmodel multilinearmodel.cpp)
 target_link_libraries(multilinearmodel
