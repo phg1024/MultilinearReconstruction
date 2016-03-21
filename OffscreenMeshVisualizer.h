@@ -26,7 +26,7 @@ public:
     Mesh,
     TexturedMesh
   };
-  OffscreenMeshVisualizer(int width, int height) : width(width), height(height) {}
+  OffscreenMeshVisualizer(int width, int height) : width(width), height(height), index_encoded(true) {}
 
   void BindMesh(const BasicMesh& in_mesh) {
     mesh = in_mesh;
@@ -51,6 +51,9 @@ public:
   void SetMVPMode(MVPMode mode_in) {
     mode = mode_in;
   }
+  void SetIndexEncoded(bool val) {
+    index_encoded = val;
+  }
 
   QImage Render(bool multi_sampled=false) const;
   pair<QImage, vector<float>> RenderWithDepth(bool multi_sampled=false) const;
@@ -68,6 +71,7 @@ private:
 
   mutable vector<int> faces_to_render;
 
+  bool index_encoded;
   BasicMesh mesh;
   QImage texture;
   mutable glm::dmat4 Mview;

@@ -199,13 +199,13 @@ void MeshVisualizer::paintGL() {
           }
         };
 
-        set_diffuse_color_by_normal(n0);
+        //set_diffuse_color_by_normal(n0);
         glNormal3dv(n0.data());glVertex3dv(v0.data());
 
-        set_diffuse_color_by_normal(n1);
+        //set_diffuse_color_by_normal(n1);
         glNormal3dv(n1.data());glVertex3dv(v1.data());
 
-        set_diffuse_color_by_normal(n2);
+        //set_diffuse_color_by_normal(n2);
         glNormal3dv(n2.data());glVertex3dv(v2.data());
       }
       glEnd();

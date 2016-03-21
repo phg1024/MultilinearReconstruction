@@ -4,6 +4,19 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/euler_angles.hpp>
 
+namespace {
+  inline void encode_index(int idx, unsigned char& r, unsigned char& g, unsigned char& b) {
+    r = static_cast<unsigned char>(idx & 0xff); idx >>= 8;
+    g = static_cast<unsigned char>(idx & 0xff); idx >>= 8;
+    b = static_cast<unsigned char>(idx & 0xff);
+  }
+
+  inline int decode_index(unsigned char r, unsigned char g, unsigned char b, int& idx) {
+    idx = b; idx <<= 8; idx |= g; idx <<= 8; idx |= r;
+    return idx;
+  }
+}
+
 void OffscreenMeshVisualizer::SetupViewing() const {
   switch(mode) {
     case OrthoNormal: {
