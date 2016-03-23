@@ -50,15 +50,22 @@ set(MKLLIBS "-Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_lp64.a ${MKLR
 include_directories("/home/phg/SDKs/PhGLib/include")
 set(PhGLib "-L/home/phg/SDKs/PhGLib/lib -lPhGLib")
 
-# Tell CMake to create the helloworld executable
 add_executable(test_mesh_visualizer test_mesh_visualizer.cpp)
-# Use the Widgets module from Qt 5.
 target_link_libraries(test_mesh_visualizer basicmesh meshvisualizer
         Qt5::Core
         Qt5::Widgets
         Qt5::OpenGL
         ${MKLLIBS}
         ${PhGLib})
+
+add_executable(test_mesh_visualizer2 test_mesh_visualizer2.cpp)
+target_link_libraries(test_mesh_visualizer2 basicmesh ioutilities multilinearmodel meshvisualizer2
+                Qt5::Core
+                Qt5::Widgets
+                Qt5::OpenGL
+                ${MKLLIBS}
+                ${PhGLib})
+
 
 add_executable(test_tensors test_tensors.cpp)
 target_link_libraries(test_tensors tensor)

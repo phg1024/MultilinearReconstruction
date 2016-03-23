@@ -97,6 +97,13 @@ target_link_libraries(meshvisualizer
         ${MKLLIBS}
         ${PhGLib})
 
+add_library(meshvisualizer2 meshvisualizer2.cpp)
+target_link_libraries(meshvisualizer2
+        Qt5::Widgets
+        Qt5::OpenGL
+        ${MKLLIBS}
+        ${PhGLib})
+
 add_library(tensor tensor.hpp)
 target_link_libraries(tensor ${MKLLIBS})
 

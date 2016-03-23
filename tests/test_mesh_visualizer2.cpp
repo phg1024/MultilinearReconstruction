@@ -1,0 +1,38 @@
+#include <QApplication>
+#include <GL/freeglut_std.h>
+#include "../meshvisualizer2.h"
+#include "../multilinearmodel.h"
+#include "../basicmesh.h"
+#include "../costfunctions.h"
+#include "../ioutilities.h"
+#include "../multilinearmodel.h"
+#include "../parameters.h"
+#include "../utils.hpp"
+
+int main(int argc, char** argv) {
+  QApplication a(argc, argv);
+
+  auto recon_results = LoadReconstructionResult(argv[1]);
+
+  MultilinearModel model("/home/phg/Data/Multilinear/blendshape_core.tensor");
+  MultilinearModelPrior model_prior;
+  model_prior.load("/home/phg/Data/Multilinear/blendshape_u_0_aug.tensor",
+                   "/home/phg/Data/Multilinear/blendshape_u_1_aug.tensor");
+
+
+  model.ApplyWeights(recon_results.params_model.Wid, recon_results.params_model.Wexp);
+  BasicMesh mesh0("/home/phg/Data/Multilinear/template.obj");
+  mesh0.UpdateVertices(model.GetTM());
+  mesh0.ComputeNormals();
+
+  MeshVisualizer2 w("template mesh", mesh0);
+
+  w.SetMeshRotationTranslation(recon_results.params_model.R, recon_results.params_model.T);
+  w.SetCameraParameters(recon_results.params_cam);
+
+  float scale = 640.0 / recon_results.params_cam.image_size.y;
+  w.resize(recon_results.params_cam.image_size.x * scale, recon_results.params_cam.image_size.y * scale);
+
+  w.show();
+  return a.exec();
+}
