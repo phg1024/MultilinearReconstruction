@@ -51,7 +51,7 @@ include_directories("/home/phg/SDKs/PhGLib/include")
 set(PhGLib "-L/home/phg/SDKs/PhGLib/lib -lPhGLib")
 
 add_executable(test_mesh_visualizer test_mesh_visualizer.cpp)
-target_link_libraries(test_mesh_visualizer basicmesh meshvisualizer
+target_link_libraries(test_mesh_visualizer basicmesh ioutilities multilinearmodel meshvisualizer
         Qt5::Core
         Qt5::Widgets
         Qt5::OpenGL

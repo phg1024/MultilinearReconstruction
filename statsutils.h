@@ -63,6 +63,14 @@ static MatrixXd normalize(const MatrixXd& mat) {
   return normalized_mat;
 }
 
+static vector<int> FindConsistentSet_kMeans(const MatrixXd& x, int k) {
+  // Run a k-means to separate the good set and others
+
+  // Compute the centroid of the good set
+
+  // Pick k closest as the consistent set
+}
+
 static vector<int> FindConsistentSet(const MatrixXd& x, double h, int k,
                                      VectorXd* centroid_out=nullptr) {
   // Meanshift until converged

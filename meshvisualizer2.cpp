@@ -151,7 +151,7 @@ void MeshVisualizer2::paintGL() {
                                     0, 0, -(far+near)/(far-near), -1,               // col 2
                                     0, 0, -2.0 * far * near / (far - near), 0.0);   // col 3
       */
-      const double focal_length = 5.0;
+      const double focal_length = camera_params.focal_length;
       glm::dmat4 Mproj = glm::dmat4(1, 0, 0, 0,
                                     0, 1*aspect_ratio, 0, 0,
                                     0, 0, 1/focal_length, -1/focal_length,

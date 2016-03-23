@@ -7,7 +7,7 @@ MeshVisualizer::MeshVisualizer(const string &title, const BasicMesh &mesh)
   : QGLWidget(QGLFormat(QGL::SampleBuffers | QGL::AlphaChannel | QGL::DepthBuffer)),
     mesh(mesh), image_tex(-1),
     use_external_rotation_translation(false),
-    rot_x(0.0), rot_y(0.0), face_alpha(0.5),
+    rot_x(0.0), rot_y(0.0), face_alpha(0.75),
     draw_faces(true), draw_edges(false), draw_points(false)
 {
   setWindowTitle(title.c_str());

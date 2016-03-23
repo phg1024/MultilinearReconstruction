@@ -82,5 +82,18 @@ int main(int argc, char *argv[])
   // w_id, w_exp, rotation, translation, camera parameters
   recon.SaveReconstructionResults(image_filename + ".res");
 
+  {
+    //QImage I(img.width(), img.height(), QImage::Format_ARGB32);
+    //QPainter painter(&I);
+    //w.render(&painter);
+    w.paintGL();
+    QImage I = w.grabFrameBuffer();
+    I.save(string(image_filename.substr(0, image_filename.size()-4) + "_recon.png").c_str());
+  }
+
+#if 0
   return a.exec();
+#else
+  return 0;
+#endif
 }
