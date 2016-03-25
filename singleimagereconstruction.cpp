@@ -6,20 +6,65 @@
 #include "singleimagereconstructor.hpp"
 #include "glog/logging.h"
 #include "boost/timer/timer.hpp"
+#include "boost/filesystem.hpp"
+#include "boost/program_options.hpp"
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
+  // program options
+  namespace po = boost::program_options;
+  po::options_description desc("Options");
+  desc.add_options()
+    ("help", "Print help messages")
+    ("img", po::value<string>()->required(), "Input image file")
+    ("pts", po::value<string>()->required(), "Input points file")
+    ("wid", po::value<float>(), "Initial identity weight.")
+    ("dwid", po::value<float>(), "Identity weight step")
+    ("wexp", po::value<float>(), "Initial expression weight")
+    ("dwexp", po::value<float>(), "Expression weight step")
+    ("iters", po::value<int>(), "Maximum iterations")
+    ("vis,v", "Visualize reconstruction results");
+  po::variables_map vm;
+  OptimizationParameters opt_params = OptimizationParameters::Defaults();
+
+  string image_filename, pts_filename;
+  bool visualize_results = false;
+
+  try {
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::notify(vm);
+    if(vm.count("help")) {
+      cout << desc << endl;
+      return 1;
+    }
+
+    if(vm.count("wid")) opt_params.w_prior_id = vm["wid"].as<float>();
+    if(vm.count("dwid")) opt_params.d_w_prior_id = vm["dwid"].as<float>();
+    if(vm.count("wexp")) opt_params.w_prior_exp = vm["wexp"].as<float>();
+    if(vm.count("dwexp")) opt_params.d_w_prior_exp = vm["dwexp"].as<float>();
+    if(vm.count("iters")) opt_params.max_iters = vm["iters"].as<int>();
+    if(vm.count("-v") || vm.count("vis")) visualize_results = true;
+    image_filename = vm["img"].as<string>();
+    pts_filename = vm["pts"].as<string>();
+
+  } catch(po::error& e) {
+    cerr << "Error: " << e.what() << endl;
+    cerr << desc << endl;
+    return 1;
+  }
+
+  namespace fs=boost::filesystem;
+
   QApplication a(argc, argv);
   glutInit(&argc, argv);
   google::InitGoogleLogging(argv[0]);
 
-  if( argc < 3 ) {
-    cout << "Usage: ./SingleImageReconstruction image_file pts_file" << endl;
+  fs::path image_path(image_filename);
+  fs::path recon_path = image_path.parent_path() / "recon";
+
+  if ( !fs::exists(image_filename) || !fs::exists(pts_filename) ){
+    cout << "Either image file or points file is missing. Abort." << endl;
     return -1;
   }
-
-  const string image_filename(argv[1]);
-  const string pts_filename(argv[2]);
 
   const string model_filename("/home/phg/Data/Multilinear/blendshape_core.tensor");
   const string id_prior_filename("/home/phg/Data/Multilinear/blendshape_u_0_aug.tensor");
@@ -55,7 +100,7 @@ int main(int argc, char *argv[])
   // Do reconstruction
   {
     boost::timer::auto_cpu_timer t("Reconstruction finished in %w seconds.\n");
-    recon.Reconstruct();
+    recon.Reconstruct(opt_params);
   }
 
   // Visualize reconstruction result
@@ -88,12 +133,12 @@ int main(int argc, char *argv[])
     //w.render(&painter);
     w.paintGL();
     QImage I = w.grabFrameBuffer();
-    I.save(string(image_filename.substr(0, image_filename.size()-4) + "_recon.png").c_str());
+    I.save( (recon_path / image_path.filename()).string().c_str() );
   }
 
-#if 0
-  return a.exec();
-#else
-  return 0;
-#endif
+  if(visualize_results) {
+    return a.exec();
+  } else {
+    return 0;
+  }
 }

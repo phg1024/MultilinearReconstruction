@@ -89,7 +89,7 @@ public:
     opt_mode = mode;
   }
 
-  bool Reconstruct();
+  bool Reconstruct(OptimizationParameters params = OptimizationParameters::Defaults());
 
   const ModelParameters &GetModelParameters() const { return params_model; }
 
@@ -234,7 +234,7 @@ void SingleImageReconstructor<Constraint>::UpdateModels() {
 }
 
 template<typename Constraint>
-bool SingleImageReconstructor<Constraint>::Reconstruct() {
+bool SingleImageReconstructor<Constraint>::Reconstruct(OptimizationParameters opt_params) {
   // Initialize parameters
   cout << "Reconstruction begins." << endl;
 
@@ -252,12 +252,12 @@ bool SingleImageReconstructor<Constraint>::Reconstruct() {
   ColorStream(ColorOutput::Red) << "Initial Error = " << ComputeError();
 
   // Optimization parameters
-  const int kMaxIterations = need_precise_result ? 8 : 3;
+  const int kMaxIterations = opt_params.max_iters;
   const double init_weights = 1.0;
-  prior.weight_Wid = 100.0;
-  const double d_wid = 10.0;
-  prior.weight_Wexp = 100.0;
-  const double d_wexp = 10.0;
+  prior.weight_Wid = opt_params.w_prior_id;
+  const double d_wid = opt_params.d_w_prior_id;
+  prior.weight_Wexp = opt_params.w_prior_exp;
+  const double d_wexp = opt_params.d_w_prior_exp;
   int iters = 0;
 
   // Before entering the main loop, estimate the translation first
@@ -866,7 +866,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
     // Expression regularization term, minimize the norm of the expression vector
     ceres::DynamicNumericDiffCostFunction<ExpressionRegularizationTerm> *reg_cost_function =
       new ceres::DynamicNumericDiffCostFunction<ExpressionRegularizationTerm>(
-        new ExpressionRegularizationTerm(10.0)
+        new ExpressionRegularizationTerm(1.0)
       );
     reg_cost_function->AddParameterBlock(params.size()-1);
     reg_cost_function->SetNumResiduals(params.size()-1);

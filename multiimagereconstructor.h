@@ -394,10 +394,11 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
     w->resize(show_width * show_ratio, 640);
     w->show();
 
+    w->paintGL();
     QImage recon_image = w->grabFrameBuffer();
     fs::path image_path = fs::path(image_filenames[i]);
 
-    recon_image.save( (image_path.parent_path() / fs::path(image_path.stem().string() + "_recon.png")).string().c_str() );
+    recon_image.save( (image_path.parent_path() / fs::path("multi_recon") / fs::path(image_path.stem().string() + "_recon.png")).string().c_str() );
 
     ofstream fout(image_filenames[i] + ".res");
     fout << param_sets[i].cam << endl;

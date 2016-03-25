@@ -123,9 +123,19 @@ struct ReconstructionParameters {
 };
 
 struct OptimizationParameters {
-  int maxIters;
+  OptimizationParameters() : w_prior_id(1000.0), w_prior_exp(1000.0),
+                             d_w_prior_id(10.0), d_w_prior_exp(10.0),
+                             max_iters(3) {}
+
+  static OptimizationParameters Defaults() {
+    return OptimizationParameters();
+  }
   double errorThreshold;
   double errorDiffThreshold;
+
+  double w_prior_id, d_w_prior_id;
+  double w_prior_exp, d_w_prior_exp;
+  int max_iters;
 };
 
 
