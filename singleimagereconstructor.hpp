@@ -28,6 +28,7 @@ using namespace Eigen;
 #include <opencv2/opencv.hpp>
 
 #include "glm/ext.hpp"
+#include "glm/gtx/norm.hpp"
 
 #include <QTest>
 
@@ -141,6 +142,8 @@ protected:
 
   void UpdateModels();
 
+  void ProcrustesAnalysis();
+
   void OptimizeForPosition();
 
   void OptimizeForPose(int iteration);
@@ -245,10 +248,6 @@ bool SingleImageReconstructor<Constraint>::Reconstruct(OptimizationParameters op
     InitializeParameters();
   }
 
-  for (int i = 0; i < num_contour_points; ++i) {
-    params_recon.cons[i].weight = 1.0;
-  }
-
   ColorStream(ColorOutput::Red) << "Initial Error = " << ComputeError();
 
   // Optimization parameters
@@ -260,8 +259,16 @@ bool SingleImageReconstructor<Constraint>::Reconstruct(OptimizationParameters op
   const double d_wexp = opt_params.d_w_prior_exp;
   int iters = 0;
 
-  // Before entering the main loop, estimate the translation first
+  // Before entering the main loop, estimate the translation and roataion around z-axis first
+  ProcrustesAnalysis();
+
+  for (int i = 0; i < num_contour_points; ++i) {
+    params_recon.cons[i].weight = 0.5;
+  }
   OptimizeForPosition();
+  for (int i = 0; i < num_contour_points; ++i) {
+    params_recon.cons[i].weight = 1.0;
+  }
 
   while (iters++ < kMaxIterations) {
     ColorStream(ColorOutput::Green) << "Iteration " << iters << " begins.";
@@ -387,6 +394,58 @@ double SingleImageReconstructor<Constraint>::ComputeError() {
   return E;
 }
 
+template <typename Constraint>
+void SingleImageReconstructor<Constraint>::ProcrustesAnalysis() {
+  boost::timer::auto_cpu_timer timer_all(
+    "[Position optimization] Total time = %w seconds.\n");
+  const int N = indices.size();
+
+  // normalize the constraints
+  glm::dvec2 mean_q(0, 0);
+  for (int i = 0; i < N; ++i) {
+    mean_q += params_recon.cons[i].data;
+  }
+  mean_q /= N;
+
+  vector<glm::dvec2> qi2d(N);
+  double scale_q = 0.0;
+  for(int i=0;i<N;++i) {
+    qi2d[i] = params_recon.cons[i].data - mean_q;
+    scale_q += glm::dot(qi2d[i], qi2d[i]);
+  }
+  scale_q /= N;
+  for(auto& q : qi2d) q /= scale_q;
+
+  // normalize the points on the mesh
+  vector<glm::dvec2> v(N);
+  glm::dvec2 mean_v(0, 0);
+  for(int i=0;i<N;++i) {
+    auto &model_i = model_projected[i];
+    auto tm = model_i.GetTM();
+    v[i] = glm::dvec2(tm[0], tm[1]);
+    mean_v += v[i];
+  }
+  mean_v /= N;
+
+  vector<glm::dvec2> vi2d(N);
+  double scale_v = 0.0;
+  for(int i=0;i<N;++i) {
+    vi2d[i] = v[i] - mean_v;
+    scale_v += glm::dot(vi2d[i], vi2d[i]);
+  }
+  scale_v /= N;
+  for(auto& vi : vi2d) vi /= scale_v;
+
+  double denom = 0.0, numer = 0.0;
+  for(int i=0;i<N;++i) {
+    denom += glm::dot(vi2d[i], qi2d[i]);
+    numer += glm::dot(vi2d[i], glm::dvec2(qi2d[i].y, -qi2d[i].x));
+  }
+  double theta2d = atan2(numer, denom);
+
+  params_model.R[2] = theta2d;
+}
+
 template<typename Constraint>
 void SingleImageReconstructor<Constraint>::OptimizeForPosition() {
   boost::timer::auto_cpu_timer timer_all(
@@ -407,13 +466,15 @@ void SingleImageReconstructor<Constraint>::OptimizeForPosition() {
       ceres::CostFunction *cost_function = new PositionCostFunction_analytic(
         model_i,
         params_recon.cons[i],
-        params_cam);
+        params_cam,
+        params_model.R[2]);
 #else
       ceres::CostFunction *cost_function =
         new ceres::NumericDiffCostFunction<PositionCostFunction, ceres::CENTRAL, 1, 3>(
           new PositionCostFunction(model_i,
                                    params_recon.cons[i],
-                                   params_cam));
+                                   params_cam,
+                                   params_model.R[2]));
 #endif
       problem.AddResidualBlock(cost_function, NULL, params.data());
     }
@@ -423,12 +484,20 @@ void SingleImageReconstructor<Constraint>::OptimizeForPosition() {
     boost::timer::auto_cpu_timer timer_solve(
       "[Position optimization] Problem solve time = %w seconds.\n");
 
-    ceres::Solver::Options options;
-    options.max_num_iterations = 30;
-    DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
-    ceres::Solver::Summary summary;
-    Solve(options, &problem, &summary);
-    DEBUG_OUTPUT(summary.BriefReport());
+    const int max_tries = 5;
+    for(int i=0;i<max_tries;++i) {
+      ceres::Solver::Options options;
+      options.max_num_iterations = 100;
+      DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
+      ceres::Solver::Summary summary;
+      Solve(options, &problem, &summary);
+      DEBUG_OUTPUT(summary.BriefReport());
+      //cout << params[0] << ' ' << params[1] << ' ' << params[2] << endl;
+      if(i == max_tries - 1) break;
+      params[0] += (rand() % 128) / 128.0;
+      params[1] += (rand() % 128) / 128.0;
+      params[2] += (rand() % 128) / 128.0;
+    }
   }
 
   Vector3d newT(params[0], params[1], params[2]);
@@ -866,7 +935,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
     // Expression regularization term, minimize the norm of the expression vector
     ceres::DynamicNumericDiffCostFunction<ExpressionRegularizationTerm> *reg_cost_function =
       new ceres::DynamicNumericDiffCostFunction<ExpressionRegularizationTerm>(
-        new ExpressionRegularizationTerm(1.0)
+        new ExpressionRegularizationTerm(10.0)
       );
     reg_cost_function->AddParameterBlock(params.size()-1);
     reg_cost_function->SetNumResiduals(params.size()-1);

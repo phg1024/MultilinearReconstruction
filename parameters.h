@@ -123,7 +123,7 @@ struct ReconstructionParameters {
 };
 
 struct OptimizationParameters {
-  OptimizationParameters() : w_prior_id(1000.0), w_prior_exp(1000.0),
+  OptimizationParameters() : w_prior_id(100.0), w_prior_exp(100.0),
                              d_w_prior_id(10.0), d_w_prior_exp(10.0),
                              max_iters(3) {}
 

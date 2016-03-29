@@ -80,6 +80,26 @@ public:
   }
 
 protected:
+  void VisualizeReconstructionResult(const fs::path& folder, int i) {
+    // Visualize the reconstruction results
+    MeshVisualizer w("reconstruction result", param_sets[i].mesh);
+    w.BindConstraints(image_points_pairs[i].second);
+    w.BindImage(image_points_pairs[i].first);
+    w.BindLandmarks(init_indices);
+
+    w.BindUpdatedLandmarks(param_sets[i].indices);
+    w.SetMeshRotationTranslation(param_sets[i].model.R, param_sets[i].model.T);
+    w.SetCameraParameters(param_sets[i].cam);
+    w.resize(image_points_pairs[i].first.width(), image_points_pairs[i].first.height());
+    w.show();
+    w.paintGL();
+    w.update();
+
+    QImage recon_image = w.grabFrameBuffer();
+    fs::path image_path = fs::path(image_filenames[i]);
+
+    recon_image.save( (folder / fs::path(image_path.stem().string() + ".png")).string().c_str() );
+  }
 
 private:
   MultilinearModel model;
@@ -109,8 +129,26 @@ private:
   SingleImageReconstructor<Constraint> single_recon;
 };
 
+namespace {
+  void safe_create(const fs::path& p) {
+    if(!fs::exists(p)) {
+      fs::create_directory(p);
+    }
+  }
+}
+
 template <typename Constraint>
 bool MultiImageReconstructor<Constraint>::Reconstruct() {
+  cout << "Reconstruction begins..." << endl;
+
+  // Misc stuff
+  cout << image_filenames.size() << endl;
+  fs::path image_path = fs::path(image_filenames.front()).parent_path();
+  fs::path result_path = image_path / fs::path("multi_recon");
+  cout << "creating directory " << result_path.string() << endl;
+  safe_create(result_path);
+  cout << "directory created ..." << endl;
+
   // Initialize the parameter sets
   param_sets.resize(image_points_pairs.size());
   for(size_t i=0;i<param_sets.size();++i) {
@@ -153,8 +191,16 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
   for(int i=0;i<num_images;++i) consistent_set[i] = i;
 
   while(iters_main_loop++ < 3){
+    fs::path step_result_path = result_path / fs::path("step" + to_string(iters_main_loop));
+    safe_create(step_result_path);
 
     // Single image reconstruction step
+    OptimizationParameters opt_params = OptimizationParameters::Defaults();
+    opt_params.w_prior_id = 10 * iters_main_loop;
+    opt_params.w_prior_exp = 10;
+
+    fs::path step_single_recon_result_path = step_result_path / fs::path("single_recon");
+    safe_create(step_single_recon_result_path);
     for(int i=0;i<num_images;++i) {
       single_recon.SetMesh(param_sets[i].mesh);
       single_recon.SetIndices(param_sets[i].indices);
@@ -167,7 +213,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
       // Perform reconstruction
       {
         boost::timer::auto_cpu_timer t("Single image reconstruction finished in %w seconds.\n");
-        single_recon.Reconstruct();
+        single_recon.Reconstruct(opt_params);
       }
 
       // Store results
@@ -177,18 +223,8 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
       param_sets[i].indices = single_recon.GetIndices();
       param_sets[i].cam = single_recon.GetCameraParameters();
 
-      if (false) {
-        // Visualize the reconstruction results
-        MeshVisualizer* w = new MeshVisualizer("reconstruction result", param_sets[i].mesh);
-        w->BindConstraints(image_points_pairs[i].second);
-        w->BindImage(image_points_pairs[i].first);
-        w->BindLandmarks(init_indices);
-
-        w->BindUpdatedLandmarks(param_sets[i].indices);
-        w->SetMeshRotationTranslation(param_sets[i].model.R, param_sets[i].model.T);
-        w->SetCameraParameters(param_sets[i].cam);
-        w->resize(image_points_pairs[i].first.width(), image_points_pairs[i].first.height());
-        w->show();
+      if (true) {
+        VisualizeReconstructionResult(step_single_recon_result_path, i);
       }
     }
 
@@ -202,14 +238,15 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
     identity_weights_history.push_back(identity_weights);
 
     // Remove outliers
+    fs::path selection_result_path = step_result_path / fs::path("selection");
+    safe_create(selection_result_path);
     #if 1
     const double ratios[] = {0.0, 0.2, 0.4, 0.6};
     consistent_set = StatsUtils::FindConsistentSet(identity_weights, 0.5, ratios[iters_main_loop] * num_images, &identity_centroid);
     assert(consistent_set.size() > 0);
     for(auto i : consistent_set) {
-      cout << i << ' ';
+      VisualizeReconstructionResult(selection_result_path, i);
     }
-    cout << endl;
     #else
     // Compute the centroid of the consistent set
     identity_centroid = VectorXd::Zero(param_sets[0].model.Wid.rows());
@@ -238,6 +275,9 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
         for(int i=0;i<num_images;++i) consistent_set[i] = i;
       }
 
+      fs::path joint_pre_result_path = step_result_path / fs::path("joint_recon_" + to_string(iters_joint_optimization) + "_pre");
+      safe_create(joint_pre_result_path);
+
       for(auto i : consistent_set) {
         single_recon.SetMesh(param_sets[i].mesh);
         single_recon.SetIndices(param_sets[i].indices);
@@ -253,7 +293,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
 
         {
           boost::timer::auto_cpu_timer t("Single image reconstruction finished in %w seconds.\n");
-          single_recon.Reconstruct();
+          single_recon.Reconstruct(opt_params);
         }
 
         // Store results
@@ -263,18 +303,9 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
         param_sets[i].indices = single_recon.GetIndices();
         param_sets[i].cam = single_recon.GetCameraParameters();
 
-        if (false) {
+        if (true) {
           // Visualize the reconstruction results
-          MeshVisualizer* w = new MeshVisualizer("reconstruction result", param_sets[i].mesh);
-          w->BindConstraints(image_points_pairs[i].second);
-          w->BindImage(image_points_pairs[i].first);
-          w->BindLandmarks(init_indices);
-
-          w->BindUpdatedLandmarks(param_sets[i].indices);
-          w->SetMeshRotationTranslation(param_sets[i].model.R, param_sets[i].model.T);
-          w->SetCameraParameters(param_sets[i].cam);
-          w->resize(image_points_pairs[i].first.width(), image_points_pairs[i].first.height());
-          w->show();
+          VisualizeReconstructionResult(joint_pre_result_path, i);
         }
       }
 
@@ -285,6 +316,9 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
 
       // [Joint reconstruction] step 2: estimate identity weights jointly
       {
+        fs::path joint_post_result_path = step_result_path / fs::path("joint_recon_" + to_string(iters_joint_optimization) + "_post");
+        safe_create(joint_post_result_path);
+
         ceres::Problem problem;
         VectorXd params = param_sets[0].model.Wid;
 
@@ -356,6 +390,12 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
           }
         }
 
+        for(auto i : consistent_set) {
+          if(true) {
+            VisualizeReconstructionResult(joint_post_result_path, i);
+          }
+        }
+
         identity_weights_centroid_history.push_back(params);
       }
     }
@@ -398,7 +438,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
     QImage recon_image = w->grabFrameBuffer();
     fs::path image_path = fs::path(image_filenames[i]);
 
-    recon_image.save( (image_path.parent_path() / fs::path("multi_recon") / fs::path(image_path.stem().string() + "_recon.png")).string().c_str() );
+    recon_image.save( (result_path / fs::path(image_path.stem().string() + "_recon.png")).string().c_str() );
 
     ofstream fout(image_filenames[i] + ".res");
     fout << param_sets[i].cam << endl;

@@ -303,16 +303,20 @@ struct PoseCostFunction_analytic : public ceres::SizedCostFunction<2, 3, 3> {
 struct PositionCostFunction {
   PositionCostFunction(const MultilinearModel &model,
                        const Constraint2D &constraint,
-                       const CameraParameters &cam_params)
-    : model(model), constraint(constraint), cam_params(cam_params) { }
+                       const CameraParameters &cam_params,
+                       double theta_z)
+    : model(model), constraint(constraint), cam_params(cam_params),
+      theta_z(theta_z) {}
 
   bool operator()(const double *const params, double *residual) const {
     auto tm = model.GetTM();
     glm::dvec3 p(tm[0], tm[1], tm[2]);
 
-    glm::dmat4 Mview = glm::translate(glm::dmat4(1.0),
-                                      glm::dvec3(params[0], params[1],
-                                                 params[2]));
+    glm::dmat4 Rmat = glm::eulerAngleZ(theta_z);
+    glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
+                                     glm::dvec3(params[0], params[1],
+                                                params[2]));
+    glm::dmat4 Mview = Tmat * Rmat;
 
     glm::dvec3 q = ProjectPoint(p, Mview, cam_params);
 
@@ -325,13 +329,16 @@ struct PositionCostFunction {
   MultilinearModel model;
   Constraint2D constraint;
   CameraParameters cam_params;
+  double theta_z;
 };
 
 struct PositionCostFunction_analytic : public ceres::SizedCostFunction<2, 3> {
   PositionCostFunction_analytic(const MultilinearModel &model,
                                 const Constraint2D &constraint,
-                                const CameraParameters &cam_params)
-    : model(model), constraint(constraint), cam_params(cam_params) { }
+                                const CameraParameters &cam_params,
+                                double theta_z)
+    : model(model), constraint(constraint), cam_params(cam_params),
+      theta_z(theta_z) {}
 
   virtual bool Evaluate(double const *const *params,
                         double *residuals,
@@ -339,9 +346,11 @@ struct PositionCostFunction_analytic : public ceres::SizedCostFunction<2, 3> {
     auto tm = model.GetTM();
     glm::dvec3 p(tm[0], tm[1], tm[2]);
 
-    glm::dmat4 Mview = glm::translate(glm::dmat4(1.0),
-                                      glm::dvec3(params[0][0], params[0][1],
-                                                 params[0][2]));
+    glm::dmat4 Rmat = glm::eulerAngleZ(theta_z);
+    glm::dmat4 Tmat = glm::translate(glm::dmat4(1.0),
+                                     glm::dvec3(params[0][0], params[0][1],
+                                                params[0][2]));
+    glm::dmat4 Mview = Tmat * Rmat;
 
     glm::dvec3 q = ProjectPoint(p, Mview, cam_params);
 
@@ -381,6 +390,7 @@ struct PositionCostFunction_analytic : public ceres::SizedCostFunction<2, 3> {
   MultilinearModel model;
   Constraint2D constraint;
   CameraParameters cam_params;
+  double theta_z;
 };
 
 struct IdentityCostFunction {
