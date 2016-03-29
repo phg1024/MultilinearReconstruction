@@ -104,6 +104,13 @@ target_link_libraries(meshvisualizer2
         ${MKLLIBS}
         ${PhGLib})
 
+add_library(offscreenmeshvisualizer OffscreenMeshVisualizer.cpp)
+target_link_libraries(offscreenmeshvisualizer
+                Qt5::Widgets
+                Qt5::OpenGL
+                ${MKLLIBS}
+                ${PhGLib})
+
 add_library(tensor tensor.hpp)
 target_link_libraries(tensor ${MKLLIBS})
 
@@ -132,11 +139,12 @@ target_link_libraries(MultiImageReconstruction
         multilinearmodel
         basicmesh
         ioutilities
+        offscreenmeshvisualizer
         tensor
         Qt5::Core
         Qt5::Widgets
         Qt5::OpenGL
-		Qt5::Test
+        Qt5::Test
         ${MKLLIBS}
         ${PhGLib})
 

@@ -133,8 +133,7 @@ struct OptimizationParameters {
   double errorThreshold;
   double errorDiffThreshold;
 
-  double w_prior_id, d_w_prior_id;
-  double w_prior_exp, d_w_prior_exp;
+  double w_prior_id, w_prior_exp, d_w_prior_id, d_w_prior_exp;
   int max_iters;
 };
 

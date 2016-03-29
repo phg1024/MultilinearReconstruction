@@ -23,6 +23,8 @@
 #include "statsutils.h"
 #include "utils.hpp"
 
+#include "OffscreenMeshVisualizer.h"
+
 #include "boost/filesystem/operations.hpp"
 #include "boost/filesystem/path.hpp"
 
@@ -82,6 +84,7 @@ public:
 protected:
   void VisualizeReconstructionResult(const fs::path& folder, int i) {
     // Visualize the reconstruction results
+    #if 0
     MeshVisualizer w("reconstruction result", param_sets[i].mesh);
     w.BindConstraints(image_points_pairs[i].second);
     w.BindImage(image_points_pairs[i].first);
@@ -99,6 +102,22 @@ protected:
     fs::path image_path = fs::path(image_filenames[i]);
 
     recon_image.save( (folder / fs::path(image_path.stem().string() + ".png")).string().c_str() );
+    #else
+    OffscreenMeshVisualizer visualizer(image_points_pairs[i].first.width(),
+                                       image_points_pairs[i].first.height());
+
+    visualizer.SetMVPMode(OffscreenMeshVisualizer::CamPerspective);
+    visualizer.SetRenderMode(OffscreenMeshVisualizer::Mesh);
+    visualizer.BindMesh(param_sets[i].mesh);
+    visualizer.SetCameraParameters(param_sets[i].cam);
+    visualizer.SetMeshRotationTranslation(param_sets[i].model.R, param_sets[i].model.T);
+    visualizer.SetIndexEncoded(false);
+    visualizer.SetEnableLighting(true);
+
+    QImage img = visualizer.Render(true);
+    fs::path image_path = fs::path(image_filenames[i]);
+    img.save((folder / fs::path(image_path.stem().string() + ".png")).string().c_str());
+    #endif
   }
 
 private:
@@ -173,7 +192,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
     params.recon.imageHeight = image_height;
   }
 
-  const size_t num_images = image_points_pairs.size();
+  const int num_images = image_points_pairs.size();
 
   VectorXd identity_centroid;
 
@@ -326,7 +345,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
         for(auto i : consistent_set) {
           // Create a projected model first
           vector<MultilinearModel> model_projected_i(param_sets[i].indices.size());
-          for(int j=0;j<param_sets[i].indices.size();++j) {
+          for(size_t j=0;j<param_sets[i].indices.size();++j) {
             model_projected_i[j] = model.project(vector<int>(1, param_sets[i].indices[j]));
             model_projected_i[j].ApplyWeights(param_sets[i].model.Wid, param_sets[i].model.Wexp);
           }
@@ -346,7 +365,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
           double weight_i = 100.0 / puple_distance;
 
           // Add per-vertex constraints
-          for(int j=0;j<param_sets[i].indices.size();++j) {
+          for(size_t j=0;j<param_sets[i].indices.size();++j) {
             ceres::CostFunction * cost_function = new IdentityCostFunction_analytic(
               model_projected_i[j], param_sets[i].recon.cons[j], params.size(), Mview_i, Rmat_i,
               param_sets[i].cam, weight_i);
@@ -403,13 +422,13 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
 
   // Output the reconstructed identity weights
   {
-    for(int i=0;i<identity_weights_history.size();++i) {
+    for(size_t i=0;i<identity_weights_history.size();++i) {
       ofstream fout("identity_matrix" + std::to_string(i) + ".txt");
       fout << identity_weights_history[i];
       fout.close();
     }
 
-    for(int i=0;i<identity_weights_centroid_history.size();++i) {
+    for(size_t i=0;i<identity_weights_centroid_history.size();++i) {
       ofstream fout("identity_centroid" + std::to_string(i) + ".txt");
       fout << identity_weights_centroid_history[i];
       fout.close();
@@ -445,6 +464,8 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
     fout << param_sets[i].model << endl;
     fout.close();
   }
+
+  return true;
 }
 
 #endif //MULTILINEARRECONSTRUCTION_MULTIIMAGERECONSTRUCTOR_H

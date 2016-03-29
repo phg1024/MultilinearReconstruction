@@ -66,6 +66,14 @@ target_link_libraries(test_mesh_visualizer2 basicmesh ioutilities multilinearmod
                 ${MKLLIBS}
                 ${PhGLib})
 
+add_executable(test_offscreen_visualizer test_offscreen_visualizer.cpp)
+target_link_libraries(test_offscreen_visualizer basicmesh ioutilities multilinearmodel offscreenmeshvisualizer
+                Qt5::Core
+                Qt5::Widgets
+                Qt5::OpenGL
+                ${MKLLIBS}
+                ${PhGLib})
+
 
 add_executable(test_tensors test_tensors.cpp)
 target_link_libraries(test_tensors tensor)

@@ -120,7 +120,7 @@ public:
 
   vector<int> GetUpdatedIndices() const {
     vector<int> idxs;
-    for (int i = 0; i < params_recon.cons.size(); ++i) {
+    for (size_t i = 0; i < params_recon.cons.size(); ++i) {
       idxs.push_back(params_recon.cons[i].vidx);
     }
     return idxs;
@@ -223,14 +223,14 @@ template <typename Constraint>
 void SingleImageReconstructor<Constraint>::UpdateModels() {
   model.ApplyWeights(params_model.Wid, params_model.Wexp);
 
-  for (int i = 0; i < indices.size(); ++i) {
+  for (size_t i = 0; i < indices.size(); ++i) {
     params_recon.cons[i].vidx = indices[i];
     params_recon.cons[i].weight = 1.0;
   }
 
   // Create initial projected models
   model_projected.resize(params_recon.cons.size());
-  for (int i = 0; i < params_recon.cons.size(); ++i) {
+  for (size_t i = 0; i < params_recon.cons.size(); ++i) {
     model_projected[i] = model.project(vector<int>(1, indices[i]));
     model_projected[i].ApplyWeights(params_model.Wid, params_model.Wexp);
   }
@@ -380,7 +380,7 @@ double SingleImageReconstructor<Constraint>::ComputeError() {
   glm::dmat4 Mview = Tmat * Rmat;
 
   double E = 0;
-  for (int i = 0; i < indices.size(); ++i) {
+  for (size_t i = 0; i < indices.size(); ++i) {
     auto &model_i = model_projected[i];
     //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
     auto tm = model_i.GetTM();
@@ -459,7 +459,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForPosition() {
     boost::timer::auto_cpu_timer timer_construction(
       "[Position optimization] Problem construction time = %w seconds.\n");
 
-    for (int i = 0; i < indices.size(); ++i) {
+    for (size_t i = 0; i < indices.size(); ++i) {
       auto &model_i = model_projected[i];
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
 #if USE_ANALYTIC_COST_FUNCTIONS
@@ -675,7 +675,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose(int iteration) {
     boost::timer::auto_cpu_timer timer_construction(
       "[Pose optimization] Problem construction time = %w seconds.\n");
 
-    for (int i = 0; i < indices.size(); ++i) {
+    for (size_t i = 0; i < indices.size(); ++i) {
       auto &model_i = model_projected[i];
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
       Constraint2D cons_i = params_recon.cons[i];
@@ -765,7 +765,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForFocalLength() {
 
   double numer = 0.0, denom = 0.0;
   const double sx = params_cam.image_size.x, sy = params_cam.image_size.y;
-  for (int i = 0; i < indices.size(); ++i) {
+  for (size_t i = 0; i < indices.size(); ++i) {
     auto &model_i = model_projected[i];
     // Must apply weights here because the weights are just updated
     model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
@@ -897,7 +897,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
   {
     boost::timer::auto_cpu_timer timer_construction(
       "[Expression optimization] Problem construction time = %w seconds.\n");
-    for (int i = 0; i < indices.size(); ++i) {
+    for (size_t i = 0; i < indices.size(); ++i) {
       auto &model_i = model_projected[i];
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
 #if USE_ANALYTIC_COST_FUNCTIONS
@@ -1021,7 +1021,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
   {
     boost::timer::auto_cpu_timer timer_construction(
       "[Identity optimization] Problem construction time = %w seconds.\n");
-    for (int i = 0; i < indices.size(); ++i) {
+    for (size_t i = 0; i < indices.size(); ++i) {
       auto &model_i = model_projected[i];
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
 
@@ -1122,10 +1122,10 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices(int iterations) 
   vector<pair<int, glm::dvec4>> candidates_center;
   vector<pair<int, glm::dvec4>> candidates_right;
 
-  for (int j = 0; j < contour_indices.size(); ++j) {
+  for (size_t j = 0; j < contour_indices.size(); ++j) {
     vector<double> dot_products(contour_indices[j].size(), 0.0);
     vector<glm::dvec4> contour_vertices(contour_indices[j].size());
-    for (int i = 0; i < contour_indices[j].size(); ++i) {
+    for (size_t i = 0; i < contour_indices[j].size(); ++i) {
 //      auto model_ji = model.project(vector<int>(1, contour_indices[j][i]));
 //      model_ji.ApplyWeights(params_model.Wid, params_model.Wexp);
 //      auto tm = model_ji.GetTM();
@@ -1180,7 +1180,7 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices(int iterations) 
       candidates->push_back(make_pair(contour_indices[j][min_idx - 1],
                                       p1));
     }
-    if (min_idx < contour_indices[j].size() - 1) {
+    if (min_idx < static_cast<int>(contour_indices[j].size() - 1)) {
       Vector3d v_ji1 = mesh.vertex(contour_indices[j][min_idx + 1]);
       glm::dvec4 p1(v_ji1[0], v_ji1[1], v_ji1[2], 1.0);
       candidates->push_back(make_pair(contour_indices[j][min_idx + 1],
@@ -1198,7 +1198,7 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices(int iterations) 
   auto project_candidate_points = [=](
     const vector<pair<int, glm::dvec4>> &candidates,
     vector<glm::dvec3> &projected_points) {
-    for (int i = 0; i < candidates.size(); ++i) {
+    for (size_t i = 0; i < candidates.size(); ++i) {
       projected_points[i] = ProjectPoint(
         glm::dvec3(candidates[i].second.x,
                    candidates[i].second.y,
@@ -1228,7 +1228,7 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices(int iterations) 
     }
 
     vector<double> dists(candidates->size());
-    for (int j = 0; j < candidates->size(); ++j) {
+    for (size_t j = 0; j < candidates->size(); ++j) {
       double dx = (*projected_points)[j].x - params_recon.cons[i].data.x;
       double dy = (*projected_points)[j].y - params_recon.cons[i].data.y;
       dists[j] = dx * dx + dy * dy;

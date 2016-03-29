@@ -100,7 +100,7 @@ public:
     }
     cout << "npoints = " << npoints << endl;
     MatrixXd P(npoints, 3);
-    for (int i = 0, offset=0; i < validfaces.size(); ++i) {
+    for (size_t i = 0, offset=0; i < validfaces.size(); ++i) {
       int fidx = validfaces[i];
       int v1 = faces(fidx, 0), v2 = faces(fidx, 1), v3 = faces(fidx, 2);
       double x1 = verts(v1, 0), x2 = verts(v2, 0), x3 = verts(v3, 0);

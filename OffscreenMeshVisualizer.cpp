@@ -66,6 +66,42 @@ void OffscreenMeshVisualizer::SetupViewing() const {
   }
 }
 
+void OffscreenMeshVisualizer::EnableLighting() const
+{
+  GLfloat light_position[] = {10.0, 4.0, 10.0, 1.0};
+  GLfloat mat_specular[] = {0.5, 0.5, 0.5, 1.0};
+  GLfloat mat_diffuse[] = {0.375, 0.375, 0.375, 1.0};
+  GLfloat mat_shininess[] = {25.0};
+  GLfloat light_ambient[] = {0.05, 0.05, 0.05, 1.0};
+  GLfloat white_light[] = {1.0, 1.0, 1.0, 1.0};
+
+  glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, mat_specular);
+  glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, mat_shininess);
+  glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
+
+  glLightfv(GL_LIGHT0, GL_POSITION, light_position);
+  glLightfv(GL_LIGHT0, GL_DIFFUSE, white_light);
+  glLightfv(GL_LIGHT0, GL_SPECULAR, white_light);
+  glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);
+
+  light_position[0] = -10.0;
+  glLightfv(GL_LIGHT1, GL_POSITION, light_position);
+  glLightfv(GL_LIGHT1, GL_DIFFUSE, white_light);
+  glLightfv(GL_LIGHT1, GL_SPECULAR, white_light);
+  glLightfv(GL_LIGHT1, GL_AMBIENT, light_ambient);
+
+  glEnable(GL_LIGHTING);
+  glEnable(GL_LIGHT0);
+  glEnable(GL_LIGHT1);
+}
+
+void OffscreenMeshVisualizer::DisableLighting() const
+{
+  glDisable(GL_LIGHT0);
+  glDisable(GL_LIGHT1);
+  glDisable(GL_LIGHTING);
+}
+
 pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_sampled) const {
   boost::timer::auto_cpu_timer t("render time = %w seconds.\n");
   QSurfaceFormat format;
@@ -95,6 +131,7 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
   fbo.bind();
 
   // draw the triangles
+  if(lighting_enabled) EnableLighting();
 
   // setup OpenGL viewing
 #define DEBUG_GEN 0   // Change this to 1 to generate albedo pixel map
@@ -123,7 +160,7 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
 
   switch(render_mode) {
     case Texture: {
-      PhGUtils::message("rendering texture.");
+      //PhGUtils::message("rendering texture.");
       for(int face_i : faces_to_render) {
         auto normal_i = mesh.normal(face_i);
         auto f = mesh.face_texture(face_i);
@@ -149,11 +186,11 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
 #endif
         glEnd();
       }
-      PhGUtils::message("done.");
+      //PhGUtils::message("done.");
       break;
     }
     case Mesh: {
-      PhGUtils::message("rendering mesh.");
+      //PhGUtils::message("rendering mesh.");
       for(int face_i : faces_to_render) {
         auto normal_i = mesh.normal(face_i);
         auto f = mesh.face(face_i);
@@ -164,12 +201,19 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
         int tmp_idx;
         assert(decode_index(r, g, b, tmp_idx) == face_i);
 
-        glShadeModel(GL_FLAT);
+        if(index_encoded)
+          glShadeModel(GL_FLAT);
+        else
+          glShadeModel(GL_SMOOTH);
 
         glBegin(GL_TRIANGLES);
 
         glNormal3f(n[0], n[1], n[2]);
-        glColor4ub(r, g, b, 255);
+
+        if(index_encoded)
+          glColor4ub(r, g, b, 255);
+        else
+          glColor4ub(100, 100, 100, 200);
 
         //glColor3f(1, 0, 0);
         glVertex3f(v0[0], v0[1], v0[2]);
@@ -180,11 +224,11 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
 
         glEnd();
       }
-      PhGUtils::message("done.");
+      //PhGUtils::message("done.");
       break;
     }
     case Normal: {
-      PhGUtils::message("rendering normals.");
+      //PhGUtils::message("rendering normals.");
       for(int face_i : faces_to_render) {
         auto normal_i = mesh.normal(face_i);
         auto f = mesh.face(face_i);
@@ -222,11 +266,11 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
 
         glEnd();
       }
-      PhGUtils::message("done.");
+      //PhGUtils::message("done.");
       break;
     }
     case TexturedMesh: {
-      PhGUtils::message("rendering textured mesh.");
+      //PhGUtils::message("rendering textured mesh.");
       glEnable(GL_TEXTURE);
 
       GLuint image_tex;
@@ -261,7 +305,7 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
 
         glEnd();
       }
-      PhGUtils::message("done.");
+      //PhGUtils::message("done.");
       break;
     }
   }
@@ -285,6 +329,7 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
   glReadPixels(0, 0, width, height, GL_DEPTH_COMPONENT, GL_FLOAT, &(depth_buffer[0]));
 
   //dump_buffer("depth.bin", width, height, (const char*)depth_buffer.data(), sizeof(float));
+  DisableLighting();
 
   // get the bitmap and save it as an image
   QImage img = fbo.toImage();

@@ -420,9 +420,8 @@ struct IdentityCostFunction {
   }
 
   mutable MultilinearModel model;
-  int params_length;
-
   Constraint2D constraint;
+  int params_length;
   glm::dmat4 Mview;
   CameraParameters cam_params;
 };
@@ -545,9 +544,8 @@ struct IdentityCostFunction_analytic : public ceres::CostFunction {
   }
 
   mutable MultilinearModel model;
-  int params_length;
-
   Constraint2D constraint;
+  int params_length;
   glm::dmat4 Mview, Rmat;
   CameraParameters cam_params;
   double weight;
@@ -581,9 +579,8 @@ struct ExpressionCostFunction {
   }
 
   mutable MultilinearModel model;
-  int params_length;
-
   Constraint2D constraint;
+  int params_length;
   glm::dmat4 Mview;
   CameraParameters cam_params;
 };
@@ -669,9 +666,8 @@ struct ExpressionCostFunction_analytic : public ceres::CostFunction {
   }
 
   mutable MultilinearModel model;
-  int params_length;
-
   Constraint2D constraint;
+  int params_length;
   glm::dmat4 Mview, Rmat;
   CameraParameters cam_params;
 };
@@ -710,9 +706,8 @@ struct ExpressionCostFunction_FACS {
   }
 
   mutable MultilinearModel model;
-  int params_length;
-
   Constraint2D constraint;
+  int params_length;
   glm::dmat4 Mview;
   const MatrixXd &Uexp;
   CameraParameters cam_params;
@@ -856,9 +851,8 @@ struct ExpressionCostFunction_FACS_analytic : public ceres::CostFunction {
   }
 
   mutable MultilinearModel model;
-  int params_length;
-
   Constraint2D constraint;
+  int params_length;
   glm::dmat4 Mview, Rmat;
   const MatrixXd &Uexp;
   CameraParameters cam_params;

@@ -69,6 +69,8 @@ static vector<int> FindConsistentSet_kMeans(const MatrixXd& x, int k) {
   // Compute the centroid of the good set
 
   // Pick k closest as the consistent set
+  
+  return vector<int>();
 }
 
 static vector<int> FindConsistentSet(const MatrixXd& x, double h, int k,

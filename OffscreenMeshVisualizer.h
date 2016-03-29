@@ -1,8 +1,8 @@
 #ifndef FACESHAPEFROMSHADING_OFFSCREENMESHVISUALIZER_H
 #define FACESHAPEFROMSHADING_OFFSCREENMESHVISUALIZER_H
 
-#include "Geometry/geometryutils.hpp"
-#include "Utils/utility.hpp"
+//#include "Geometry/geometryutils.hpp"
+//#include "Utils/utility.hpp"
 
 #include "basicmesh.h"
 #include "parameters.h"
@@ -26,7 +26,8 @@ public:
     Mesh,
     TexturedMesh
   };
-  OffscreenMeshVisualizer(int width, int height) : width(width), height(height), index_encoded(true) {}
+  OffscreenMeshVisualizer(int width, int height)
+   : width(width), height(height), index_encoded(true), lighting_enabled(false) {}
 
   void BindMesh(const BasicMesh& in_mesh) {
     mesh = in_mesh;
@@ -54,12 +55,17 @@ public:
   void SetIndexEncoded(bool val) {
     index_encoded = val;
   }
+  void SetEnableLighting(bool val) {
+    lighting_enabled = val;
+  }
 
   QImage Render(bool multi_sampled=false) const;
   pair<QImage, vector<float>> RenderWithDepth(bool multi_sampled=false) const;
 
 protected:
   void SetupViewing() const;
+  void EnableLighting() const;
+  void DisableLighting() const;
 
 private:
   int width, height;
@@ -72,6 +78,7 @@ private:
   mutable vector<int> faces_to_render;
 
   bool index_encoded;
+  bool lighting_enabled;
   BasicMesh mesh;
   QImage texture;
   mutable glm::dmat4 Mview;
