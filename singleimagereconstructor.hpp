@@ -126,10 +126,15 @@ public:
     return idxs;
   }
 
+  const ReconstructionStats GetStats() const {
+    return recon_stats;
+  }
+
   void SaveReconstructionResults(const string& filename) const {
     ofstream fout(filename);
     fout << params_cam << endl;
     fout << params_model << endl;
+    fout << recon_stats << endl;
     fout.close();
   }
 
@@ -177,6 +182,7 @@ private:
   ModelParameters params_model;
   ReconstructionParameters<Constraint> params_recon;
   OptimizationParameters params_opt;
+  ReconstructionStats recon_stats;
 
   OptimizationMode opt_mode;
 
@@ -379,7 +385,12 @@ double SingleImageReconstructor<Constraint>::ComputeError() {
                                               params_model.T[2]));
   glm::dmat4 Mview = Tmat * Rmat;
 
+  const double puple_distance = glm::distance(
+    0.5 * (params_recon.cons[28].data + params_recon.cons[30].data),
+    0.5 * (params_recon.cons[32].data + params_recon.cons[34].data));
+
   double E = 0;
+  double max_error = 0, min_error = 1e9;
   for (size_t i = 0; i < indices.size(); ++i) {
     auto &model_i = model_projected[i];
     //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
@@ -388,10 +399,17 @@ double SingleImageReconstructor<Constraint>::ComputeError() {
     auto q = ProjectPoint(p, Mview, params_cam);
     double dx = q.x - params_recon.cons[i].data.x;
     double dy = q.y - params_recon.cons[i].data.y;
-    E += dx * dx + dy * dy;
+    double error_i = sqrt(dx * dx + dy * dy) / puple_distance;
+    max_error = max(max_error, error_i);
+    min_error = min(min_error, error_i);
+    E += error_i;
   }
 
-  return E;
+  recon_stats.max_error = max_error;
+  recon_stats.min_error = min_error;
+  recon_stats.avg_error = E / indices.size();
+
+  return E / indices.size();
 }
 
 template <typename Constraint>

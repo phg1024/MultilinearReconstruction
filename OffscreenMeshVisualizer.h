@@ -24,6 +24,7 @@ public:
     Texture,
     Normal,
     Mesh,
+    MeshAndImage,
     TexturedMesh
   };
   OffscreenMeshVisualizer(int width, int height)

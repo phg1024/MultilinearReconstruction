@@ -111,9 +111,28 @@ inline ostream& operator<<(ostream& os, const ModelParameters& params) {
   return os;
 }
 
+struct ReconstructionStats {
+  double max_error, min_error, avg_error;
+
+  friend istream& operator>>(istream& is, ReconstructionStats& stats);
+  friend ostream& operator<<(ostream& os, const ReconstructionStats& stats);
+};
+
+inline istream& operator>>(istream& is, ReconstructionStats& stats) {
+  is >> stats.avg_error >> stats.min_error >> stats.max_error;
+  return is;
+}
+
+inline ostream& operator<<(ostream& os, const ReconstructionStats& stats) {
+  os << stats.avg_error << ' ' << stats.min_error << ' ' << stats.max_error;
+  return os;
+}
+
+
 struct ReconstructionResult {
   CameraParameters params_cam;
   ModelParameters params_model;
+  ReconstructionStats stats;
 };
 
 template <typename Constraint>

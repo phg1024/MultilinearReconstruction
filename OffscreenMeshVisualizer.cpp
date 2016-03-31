@@ -227,6 +227,10 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
       //PhGUtils::message("done.");
       break;
     }
+    case MeshAndImage: {
+      // TODO: write this!
+      break;
+    }
     case Normal: {
       //PhGUtils::message("rendering normals.");
       for(int face_i : faces_to_render) {

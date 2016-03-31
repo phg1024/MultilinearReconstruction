@@ -135,6 +135,7 @@ private:
     ModelParameters model;
     ReconstructionParameters<Constraint> recon;
     OptimizationParameters opt;
+    ReconstructionStats stats;
   };
 
   // Input image points pairs
@@ -244,6 +245,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
 
       if (true) {
         VisualizeReconstructionResult(step_single_recon_result_path, i);
+        single_recon.SaveReconstructionResults( (step_single_recon_result_path / fs::path(to_string(i) + ".res")).string());
       }
     }
 
@@ -259,14 +261,38 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
     // Remove outliers
     fs::path selection_result_path = step_result_path / fs::path("selection");
     safe_create(selection_result_path);
-    #if 1
-    const double ratios[] = {0.0, 0.2, 0.4, 0.6};
-    consistent_set = StatsUtils::FindConsistentSet(identity_weights, 0.5, ratios[iters_main_loop] * num_images, &identity_centroid);
-    assert(consistent_set.size() > 0);
-    for(auto i : consistent_set) {
-      VisualizeReconstructionResult(selection_result_path, i);
+
+    const int selection_method = 1;
+    switch(selection_method) {
+      case 0: {
+        const double ratios[] = {0.0, 0.2, 0.4, 0.6};
+        consistent_set = StatsUtils::FindConsistentSet(identity_weights, 0.5, ratios[iters_main_loop] * num_images, &identity_centroid);
+        assert(consistent_set.size() > 0);
+        for(auto i : consistent_set) {
+          VisualizeReconstructionResult(selection_result_path, i);
+        }
+        break;
+      }
+      case 1: {
+        const double ratios[] = {0.0, 0.2, 0.4, 0.6};
+        // Choose the ones with smallest error
+        vector<pair<int, double>> errors(num_images);
+        for(int i=0;i<num_images;++i) {
+          errors[i] = make_pair(i, param_sets[i].stats.avg_error);
+        }
+        std::sort(errors.begin(), errors.end(), [](pair<int,double> a, pair<int, double> b){
+          return a.second < b.second;
+        });
+        // Take the first few as good shape
+        int k = max(1, static_cast<int>(ratios[iters_main_loop] * num_images));
+        consistent_set.clear();
+        for(int i=0;i<k;++i) {
+          consistent_set.push_back(errors[i].first);
+        }
+        break;
+      }
     }
-    #else
+
     // Compute the centroid of the consistent set
     identity_centroid = VectorXd::Zero(param_sets[0].model.Wid.rows());
     for(auto i : consistent_set) {
@@ -274,7 +300,6 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
       identity_centroid += param_sets[i].model.Wid;
     }
     identity_centroid /= consistent_set.size();
-    #endif
 
     // Update the identity weights for all images
     for(auto& param : param_sets) {
@@ -462,6 +487,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
     ofstream fout(image_filenames[i] + ".res");
     fout << param_sets[i].cam << endl;
     fout << param_sets[i].model << endl;
+    fout << param_sets[i].stats << endl;
     fout.close();
   }
 

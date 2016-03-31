@@ -140,7 +140,7 @@ ReconstructionResult LoadReconstructionResult(const string &filename) {
     cerr << "Failed to load reconstruction result from " << filename << endl;
     exit(-1);
   }
-  fin >> result.params_cam >> result.params_model;
+  fin >> result.params_cam >> result.params_model >> result.stats;
   fin.close();
   return result;
 }
