@@ -8,7 +8,8 @@ MeshVisualizer::MeshVisualizer(const string &title, const BasicMesh &mesh)
     mesh(mesh), image_tex(-1),
     use_external_rotation_translation(false),
     rot_x(0.0), rot_y(0.0), face_alpha(0.75),
-    draw_faces(true), draw_edges(false), draw_points(false)
+    draw_faces(true), draw_edges(false), draw_points(false),
+    draw_truth(true), draw_synth(true)
 {
   setWindowTitle(title.c_str());
 }
@@ -230,10 +231,10 @@ void MeshVisualizer::paintGL() {
     }
 
     // Draw landmarks
-    if (draw_points) {
+    if (draw_truth) {
       cout << "landmarks:" << endl;
       glColor3f(.75, .25, .25);
-      GLfloat mat_diffuse[] = {0.875, 0.375, 0.375, 1.0};
+      GLfloat mat_diffuse[] = {0.275, 0.875, 0.275, 1.0};
       GLfloat mat_specular[] = {0.875, 0.875, 0.875, 1.0};
       glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
       glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, mat_specular);
@@ -252,7 +253,7 @@ void MeshVisualizer::paintGL() {
     // Draw updated landmarks
     if( draw_points ) {
       cout << "updated landmarks:" << endl;
-      glColor3f(.25, .25, .75);
+      glColor3f(.25, .75, .25);
       GLfloat mat_diffuse[] = {0.375, 0.375, 0.875, 1.0};
       GLfloat mat_specular[] = {0.875, 0.875, 0.875, 1.0};
       glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
@@ -281,9 +282,9 @@ void MeshVisualizer::paintGL() {
     glLoadIdentity();
     gluLookAt(0.0, 0.0, 4.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
 
-    if( draw_points ) {
-      glColor3f(.25, .75, .25);
-      GLfloat mat_diffuse[] = {0.375, 0.875, 0.375, 1.0};
+    if( draw_synth ) {
+      glColor3f(.25, .25, .75);
+      GLfloat mat_diffuse[] = {0.275, 0.275, 0.875, 1.0};
       GLfloat mat_specular[] = {0.875, 0.875, 0.875, 1.0};
       glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
       glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, mat_specular);
@@ -441,6 +442,18 @@ void MeshVisualizer::keyPressEvent(QKeyEvent *event) {
     }
     case Qt::Key_P: {
       draw_points = !draw_points;
+      repaint();
+      event->accept();
+      break;
+    }
+    case Qt::Key_T: {
+      draw_truth = !draw_truth;
+      repaint();
+      event->accept();
+      break;
+    }
+    case Qt::Key_S: {
+      draw_synth = !draw_synth;
       repaint();
       event->accept();
       break;

@@ -64,6 +64,7 @@ private:
   double face_alpha;
   bool draw_faces, draw_edges;
   bool draw_points;
+  bool draw_truth, draw_synth;
 };
 
 #endif // MESHVISUALIZER_H
