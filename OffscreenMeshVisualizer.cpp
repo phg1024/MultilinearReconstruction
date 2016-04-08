@@ -250,11 +250,17 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
         glm::dvec4 n1(n10[0], n10[1], n10[2], 1);
         glm::dvec4 n2(n20[0], n20[1], n20[2], 1);
 
-        n0 = Mnormal * n0; n1 = Mnormal * n1; n2 = Mnormal * n2;
+        n0 = Mnormal * n0;
+        n1 = Mnormal * n1;
+        n2 = Mnormal * n2;
 
-        Vector3d nv0 = Vector3d(n0.x + 1.0, n0.y + 1.0, n0.z + 1.0) * 0.5;
-        Vector3d nv1 = Vector3d(n1.x + 1.0, n1.y + 1.0, n1.z + 1.0) * 0.5;
-        Vector3d nv2 = Vector3d(n2.x + 1.0, n2.y + 1.0, n2.z + 1.0) * 0.5;
+        Vector3d nv0(n0.x, n0.y, n0.z); nv0.normalize();
+        Vector3d nv1(n1.x, n1.y, n1.z); nv1.normalize();
+        Vector3d nv2(n2.x, n2.y, n2.z); nv2.normalize();
+
+        nv0 = Vector3d(nv0[0] + 1.0, nv0[1] + 1.0, nv0[2] + 1.0) * 0.5;
+        nv1 = Vector3d(nv1[0] + 1.0, nv1[1] + 1.0, nv1[2] + 1.0) * 0.5;
+        nv2 = Vector3d(nv2[0] + 1.0, nv2[1] + 1.0, nv2[2] + 1.0) * 0.5;
 
         glShadeModel(GL_SMOOTH);
 

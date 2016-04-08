@@ -69,7 +69,7 @@ static vector<int> FindConsistentSet_kMeans(const MatrixXd& x, int k) {
   // Compute the centroid of the good set
 
   // Pick k closest as the consistent set
-  
+
   return vector<int>();
 }
 
@@ -238,7 +238,7 @@ cv::Mat MeanShiftSegmentation(const cv::Mat& x, double hs, double hr, double th)
     }
 
     double yMS = 0;
-    #pragma omp parallel for
+    //#pragma omp parallel for
     for(int r=0;r<height;++r) {
       for(int c=0;c<width;++c) {
         cv::Vec3d p1 = yThis.at<cv::Vec3d>(r, c);
