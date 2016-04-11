@@ -44,6 +44,8 @@ struct MultilinearModelPrior {
 
   MatrixXd sigma_Wid, sigma_Wexp;
   MatrixXd inv_sigma_Wid, inv_sigma_Wexp;
+  VectorXd inv_sigma_Wid_diag, inv_sigma_Wexp_diag;
+
   double weight_Wid, weight_Wexp;
 
   void load(const string &filename_id, const string &filename_exp) {
@@ -63,6 +65,12 @@ struct MultilinearModelPrior {
     fwid.read(reinterpret_cast<char*>(Wid0.data()), sizeof(double)*ndims);
     fwid.read(reinterpret_cast<char*>(sigma_Wid.data()), sizeof(double)*ndims*ndims);
     inv_sigma_Wid = sigma_Wid.inverse();
+
+    // Take the diagonal
+    inv_sigma_Wid_diag = VectorXd(ndims);
+    for(int i=0;i<ndims;++i) {
+      inv_sigma_Wid_diag(i) = inv_sigma_Wid(i, i);
+    }
 
     int m, n;
     fwid.read(reinterpret_cast<char*>(&m), sizeof(int));
@@ -106,6 +114,12 @@ struct MultilinearModelPrior {
     fwexp.read(reinterpret_cast<char*>(Wexp0.data()), sizeof(double)*ndims);
     fwexp.read(reinterpret_cast<char*>(sigma_Wexp.data()), sizeof(double)*ndims*ndims);
     inv_sigma_Wexp = sigma_Wexp.inverse();
+
+    // Take the diagonal
+    inv_sigma_Wexp_diag = VectorXd(ndims);
+    for(int i=0;i<ndims;++i) {
+      inv_sigma_Wexp_diag(i) = inv_sigma_Wexp(i, i);
+    }
 
     fwexp.read(reinterpret_cast<char*>(&m), sizeof(int));
     fwexp.read(reinterpret_cast<char*>(&n), sizeof(int));

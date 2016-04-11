@@ -43,6 +43,31 @@ static MatrixXd dist(const MatrixXd& mat) {
   return dist_mat;
 }
 
+static VectorXd mean(const MatrixXd& mat, int dim) {
+  switch(dim) {
+    case 1: {
+      // column wise mean
+      VectorXd m = VectorXd::Zero(mat.cols());
+      for(int i=0;i<mat.cols();++i) {
+        m += mat.col(i);
+      }
+      m = m / static_cast<double>(mat.cols());
+      return m;
+    }
+    case 2: {
+      // row wise mean
+      // column wise mean
+      VectorXd m = VectorXd::Zero(mat.rows());
+      for(int i=0;i<mat.cols();++i) {
+        m += mat.row(i).transpose();
+      }
+      m = m / static_cast<double>(mat.rows());
+      return m;
+
+    }
+  }
+}
+
 static MatrixXd normalize(const MatrixXd& mat) {
   const double max_val = mat.maxCoeff();
   const double min_val = mat.minCoeff();

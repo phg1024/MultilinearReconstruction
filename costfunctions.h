@@ -878,6 +878,30 @@ struct PriorCostFunction {
   double weight;
 };
 
+struct PriorCostFunction_fast {
+  PriorCostFunction_fast(const VectorXd &prior_vec, const VectorXd &inv_cov_mat_diag,
+                    double weight)
+    : prior_vec(prior_vec), inv_cov_mat_diag(inv_cov_mat_diag), weight(weight) { }
+
+  bool operator()(const double *const *w, double *residual) const {
+    const int params_length = prior_vec.size();
+    VectorXd diff = (Map<const VectorXd>(w[0], params_length) -
+                     prior_vec).eval();
+
+    // Simply Mahalanobis distance between w and prior_vec
+    double dMd = 0;
+    for(int i=0;i<params_length;++i) {
+      dMd += diff(i) * diff(i) * inv_cov_mat_diag(i);
+    }
+    residual[0] = sqrt(fabs(weight * dMd));
+    return true;
+  }
+
+  const VectorXd &prior_vec;
+  const VectorXd &inv_cov_mat_diag;
+  double weight;
+};
+
 struct ExpressionRegularizationCostFunction {
   ExpressionRegularizationCostFunction(const VectorXd &prior_vec,
                                        const MatrixXd &inv_cov_mat,

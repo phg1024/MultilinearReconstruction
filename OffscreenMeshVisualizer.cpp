@@ -17,8 +17,8 @@ namespace {
   }
 }
 
-void OffscreenMeshVisualizer::SetupViewing() const {
-  switch(mode) {
+void OffscreenMeshVisualizer::SetupViewing(const MVPMode& mvp_mode) const {
+  switch(mvp_mode) {
     case OrthoNormal: {
       glMatrixMode(GL_PROJECTION);
       glLoadIdentity();
@@ -31,7 +31,7 @@ void OffscreenMeshVisualizer::SetupViewing() const {
     }
     case CamPerspective: {
       glMatrixMode(GL_PROJECTION);
-
+      glLoadIdentity();
       const double aspect_ratio =
         camera_params.image_size.x / camera_params.image_size.y;
 
@@ -62,8 +62,37 @@ void OffscreenMeshVisualizer::SetupViewing() const {
       Mview = MV;
       glMatrixMode(GL_MODELVIEW);
       glLoadMatrixd(&MV[0][0]);
+      break;
+    }
+    case BackgroundImage: {
+      glMatrixMode(GL_PROJECTION);
+      glPushMatrix();
+      glLoadIdentity();
+      glOrtho(-1.0, 1.0, -1.0, 1.0, 0.01, 5.02);
+      glViewport(0, 0, width, height);
+      break;
     }
   }
+}
+
+void OffscreenMeshVisualizer::CreateTexture() const {
+  cout << "Creating opengl texture ..." << endl;
+#if 1
+  if( image_tex >= 0 )
+    glDeleteTextures(1, &image_tex);
+
+  glEnable(GL_TEXTURE_2D);
+  glGenTextures(1, &image_tex);
+  glBindTexture(GL_TEXTURE_2D, image_tex);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width(), image.height(), 0, GL_BGRA,
+               GL_UNSIGNED_BYTE, image.bits());
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+#else
+  image_tex = bindTexture(pixmap);
+#endif
+  cout << "texture id = " << image_tex << endl;
+  cout << "done." << endl;
 }
 
 void OffscreenMeshVisualizer::EnableLighting() const
@@ -130,8 +159,7 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
   QOpenGLFramebufferObject fbo(drawRectSize, fboFormat);
   fbo.bind();
 
-  // draw the triangles
-  if(lighting_enabled) EnableLighting();
+  if(!image.isNull()) CreateTexture();
 
   // setup OpenGL viewing
 #define DEBUG_GEN 0   // Change this to 1 to generate albedo pixel map
@@ -149,8 +177,6 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glEnable(GL_DEPTH_TEST);
 
-  SetupViewing();
-
   if(faces_to_render.empty()) {
     faces_to_render.resize(mesh.NumFaces());
     for(int face_i = 0; face_i < mesh.NumFaces(); ++face_i) {
@@ -160,6 +186,7 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
 
   switch(render_mode) {
     case Texture: {
+      SetupViewing(mode);
       //PhGUtils::message("rendering texture.");
       for(int face_i : faces_to_render) {
         auto normal_i = mesh.normal(face_i);
@@ -190,6 +217,10 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
       break;
     }
     case Mesh: {
+      SetupViewing(mode);
+      // draw the triangles
+      if(lighting_enabled) EnableLighting();
+
       //PhGUtils::message("rendering mesh.");
       for(int face_i : faces_to_render) {
         auto normal_i = mesh.normal(face_i);
@@ -228,11 +259,79 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
       break;
     }
     case MeshAndImage: {
-      // TODO: write this!
+      glClearColor(1, 1, 1, 0);
+      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+      glEnable(GL_DEPTH_TEST);
+
+      glEnable(GL_BLEND);
+      glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+
+      // Draw the image first
+      if( !image.isNull() ) {
+        cout << "Drawing texture ..." << endl;
+        SetupViewing(MVPMode::BackgroundImage);
+        glColor4f(1, 1, 1, 1.0);
+        glEnable(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, image_tex);
+        glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+        glBegin(GL_QUADS);
+        {
+          glTexCoord2f(0.0f, 1.0f);
+          glVertex3f(-1.0f, -1.0f, -5.0f);
+          glTexCoord2f(1.0f, 1.0f);
+          glVertex3f(1.0f, -1.0f, -5.0f);
+          glTexCoord2f(1.0f, 0.0f);
+          glVertex3f(1.0f, 1.0f, -5.0f);
+          glTexCoord2f(0.0f, 0.0f);
+          glVertex3f(-1.0f, 1.0f, -5.0f);
+        }
+        glEnd();
+        glDisable(GL_TEXTURE_2D);
+        glPopMatrix();
+      }
+
+      // Draw the mesh
+      SetupViewing(mode);
+      // draw the triangles
+      if(lighting_enabled) EnableLighting();
+
+      glEnable(GL_CULL_FACE);
+      glCullFace(GL_BACK);
+
+      const double face_alpha = 1.0;
+      glColor4d(.75, .75, .75, face_alpha);
+      GLfloat mat_diffuse[] = {0.5, 0.5, 0.5, static_cast<float>(face_alpha)};
+      GLfloat mat_specular[] = {0.25, 0.25, 0.25, static_cast<float>(face_alpha)};
+      GLfloat mat_shininess[] = {75.0};
+      glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
+      glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, mat_shininess);
+      glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, mat_specular);
+
+      for(int face_i : faces_to_render) {
+        auto normal_i = mesh.normal(face_i);
+        auto f = mesh.face(face_i);
+        auto v0 = mesh.vertex(f[0]), v1 = mesh.vertex(f[1]), v2 = mesh.vertex(f[2]);
+
+        auto n0 = mesh.vertex_normal(f[0]);
+        auto n1 = mesh.vertex_normal(f[1]);
+        auto n2 = mesh.vertex_normal(f[2]);
+
+        glShadeModel(GL_SMOOTH);
+
+        glBegin(GL_TRIANGLES);
+
+        glNormal3dv(n0.data());glVertex3f(v0[0], v0[1], v0[2]);
+        glNormal3dv(n1.data());glVertex3f(v1[0], v1[1], v1[2]);
+        glNormal3dv(n2.data());glVertex3f(v2[0], v2[1], v2[2]);
+
+        glEnd();
+      }
+      glDisable(GL_CULL_FACE);
       break;
     }
     case Normal: {
       //PhGUtils::message("rendering normals.");
+      SetupViewing(mode);
       for(int face_i : faces_to_render) {
         auto normal_i = mesh.normal(face_i);
         auto f = mesh.face(face_i);
@@ -281,6 +380,7 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
     }
     case TexturedMesh: {
       //PhGUtils::message("rendering textured mesh.");
+      SetupViewing(mode);
       glEnable(GL_TEXTURE);
 
       GLuint image_tex;

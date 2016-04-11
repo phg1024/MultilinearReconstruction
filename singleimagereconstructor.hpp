@@ -1059,10 +1059,17 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
     }
 
     // Prior term
+    #if 0
     ceres::DynamicNumericDiffCostFunction<PriorCostFunction> *prior_cost_function =
       new ceres::DynamicNumericDiffCostFunction<PriorCostFunction>(
         new PriorCostFunction(prior.Wid_avg, prior.inv_sigma_Wid,
                               prior.weight_Wid * prior_scale));
+    #else
+    ceres::DynamicNumericDiffCostFunction<PriorCostFunction_fast> *prior_cost_function =
+      new ceres::DynamicNumericDiffCostFunction<PriorCostFunction_fast>(
+        new PriorCostFunction_fast(prior.Wid_avg, prior.inv_sigma_Wid_diag,
+                                   prior.weight_Wid * prior_scale));
+    #endif
     prior_cost_function->AddParameterBlock(params.size());
     prior_cost_function->SetNumResiduals(1);
     problem.AddResidualBlock(prior_cost_function, NULL, params.data());

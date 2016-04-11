@@ -18,7 +18,8 @@ class OffscreenMeshVisualizer {
 public:
   enum MVPMode {
     OrthoNormal,
-    CamPerspective
+    CamPerspective,
+    BackgroundImage
   };
   enum RenderMode {
     Texture,
@@ -35,6 +36,9 @@ public:
   }
   void BindTexture(const QImage& in_texture) {
     texture = in_texture;
+  }
+  void BindImage(const QImage& img) {
+    image = img;
   }
   void SetMeshRotationTranslation(const Vector3d& R, const Vector3d& T) {
     mesh_rotation = R;
@@ -64,7 +68,8 @@ public:
   pair<QImage, vector<float>> RenderWithDepth(bool multi_sampled=false) const;
 
 protected:
-  void SetupViewing() const;
+  void SetupViewing(const MVPMode&) const;
+  void CreateTexture() const;
   void EnableLighting() const;
   void DisableLighting() const;
 
@@ -81,6 +86,8 @@ private:
   bool index_encoded;
   bool lighting_enabled;
   BasicMesh mesh;
+  QImage image;
+  mutable GLuint image_tex;
   QImage texture;
   mutable glm::dmat4 Mview;
 };

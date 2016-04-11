@@ -11,7 +11,8 @@
 int main(int argc, char** argv) {
   QApplication a(argc, argv);
 
-  auto recon_results = LoadReconstructionResult(argv[1]);
+  QImage in_img(argv[1]);
+  auto recon_results = LoadReconstructionResult(string(argv[1]) + ".res");
 
   MultilinearModel model("/home/phg/Data/Multilinear/blendshape_core.tensor");
   MultilinearModelPrior model_prior;
@@ -30,13 +31,14 @@ int main(int argc, char** argv) {
                                      recon_results.params_cam.image_size.y * scale);
 
   visualizer.SetMVPMode(OffscreenMeshVisualizer::CamPerspective);
-  visualizer.SetRenderMode(OffscreenMeshVisualizer::Mesh);
+  visualizer.SetRenderMode(OffscreenMeshVisualizer::MeshAndImage);
   visualizer.BindMesh(mesh0);
+  visualizer.BindImage(in_img);
   visualizer.SetCameraParameters(recon_results.params_cam);
   visualizer.SetMeshRotationTranslation(recon_results.params_model.R, recon_results.params_model.T);
   visualizer.SetIndexEncoded(false);
   visualizer.SetEnableLighting(true);
-  
+
   QImage img = visualizer.Render(true);
   img.save("img.png");
 
