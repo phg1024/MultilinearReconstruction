@@ -62,7 +62,7 @@ public:
 
   vector<int> GetNeighbors() const;
 
-  void Write(const string& filename);
+  void Write(const string& filename) const;
 
   template <typename Pred>
   vector<int> filterFaces(Pred p) {

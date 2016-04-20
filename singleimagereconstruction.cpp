@@ -22,6 +22,10 @@ int main(int argc, char *argv[]) {
     ("wexp", po::value<float>(), "Initial expression weight")
     ("dwexp", po::value<float>(), "Expression weight step")
     ("iters", po::value<int>(), "Maximum iterations")
+    ("inits", po::value<int>(), "Number of initializations")
+    ("perturb_range", po::value<double>(), "Range of perturbation")
+    ("error_thres", po::value<double>(), "Error threhsold")
+    ("error_diff_thres", po::value<double>(), "Error difference threhsold")
     ("vis,v", "Visualize reconstruction results");
   po::variables_map vm;
   OptimizationParameters opt_params = OptimizationParameters::Defaults();
@@ -42,6 +46,10 @@ int main(int argc, char *argv[]) {
     if(vm.count("wexp")) opt_params.w_prior_exp = vm["wexp"].as<float>();
     if(vm.count("dwexp")) opt_params.d_w_prior_exp = vm["dwexp"].as<float>();
     if(vm.count("iters")) opt_params.max_iters = vm["iters"].as<int>();
+    if(vm.count("inits")) opt_params.num_initializations = vm["inits"].as<int>();
+    if(vm.count("perturb_range")) opt_params.perturbation_range = vm["perturb_range"].as<double>();
+    if(vm.count("error_thres")) opt_params.errorThreshold = vm["error_thres"].as<double>();
+    if(vm.count("error_diff_thres")) opt_params.errorDiffThreshold = vm["error_diff_thres"].as<double>();
     if(vm.count("-v") || vm.count("vis")) visualize_results = true;
     image_filename = vm["img"].as<string>();
     pts_filename = vm["pts"].as<string>();
@@ -96,6 +104,7 @@ int main(int argc, char *argv[]) {
   recon.SetImage(img);
   recon.SetImageSize(img.width(), img.height());
   recon.SetConstraints(constraints);
+  recon.SetImageFilename(image_filename);
 
   // Do reconstruction
   {

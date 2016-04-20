@@ -198,7 +198,8 @@ namespace {
     MatrixXd res(3, num_pixels_s);
     for(int i=0;i<3;++i) {
       for(int j=0;j<num_pixels_s;++j) {
-        res(i, j) = (lab_s(i, j) - mean_s[i]) * std_t[i] / std_s[i] + mean_t[i];
+        //res(i, j) = (lab_s(i, j) - mean_s[i]) * std_t[i] / std_s[i] + mean_t[i];
+        res(i, j) = (lab_s(i, j) - mean_s[i]) + mean_t[i];
       }
     }
 
@@ -473,6 +474,9 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
     OptimizationParameters opt_params = OptimizationParameters::Defaults();
     opt_params.w_prior_id = 10 * pow(iters_main_loop, 0.25);
     opt_params.w_prior_exp = 10;
+    opt_params.num_initializations = 5;
+    opt_params.perturbation_range = 0.01;
+    opt_params.errorThreshold = 0.01;
 
     fs::path step_single_recon_result_path = step_result_path / fs::path("single_recon");
     safe_create(step_single_recon_result_path);
@@ -840,6 +844,9 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
 
     // Joint reconstruction step, obtain refined identity weights
     int num_iters_joint_optimization = (iters_main_loop == max_iters_main_loop)?4:3;
+
+    // Just one-pass optimization
+    opt_params.num_initializations = 1;
 
     for(int iters_joint_optimization=0;
         iters_joint_optimization<num_iters_joint_optimization;

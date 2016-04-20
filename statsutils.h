@@ -13,6 +13,8 @@
 #include <eigen3/Eigen/Geometry>
 #include <eigen3/Eigen/LU>
 
+#include <opencv2/opencv.hpp>
+
 namespace StatsUtils {
 static MatrixXd cov(const MatrixXd& mat) {
   MatrixXd centered = mat.rowwise() - mat.colwise().mean();
@@ -43,27 +45,25 @@ static MatrixXd dist(const MatrixXd& mat) {
   return dist_mat;
 }
 
-static VectorXd mean(const MatrixXd& mat, int dim) {
+static VectorXd mean(const MatrixXd& mat, int dim = 1) {
   switch(dim) {
     case 1: {
       // column wise mean
       VectorXd m = VectorXd::Zero(mat.cols());
+      for(int i=0;i<mat.rows();++i) {
+        m += mat.row(i).transpose();
+      }
+      m = m / static_cast<double>(mat.rows());
+      return m;
+    }
+    case 2: {
+      // row wise mean
+      VectorXd m = VectorXd::Zero(mat.rows());
       for(int i=0;i<mat.cols();++i) {
         m += mat.col(i);
       }
       m = m / static_cast<double>(mat.cols());
       return m;
-    }
-    case 2: {
-      // row wise mean
-      // column wise mean
-      VectorXd m = VectorXd::Zero(mat.rows());
-      for(int i=0;i<mat.cols();++i) {
-        m += mat.row(i).transpose();
-      }
-      m = m / static_cast<double>(mat.rows());
-      return m;
-
     }
   }
 }
@@ -86,6 +86,29 @@ static MatrixXd normalize(const MatrixXd& mat) {
     }
   }
   return normalized_mat;
+}
+
+static VectorXd randvec(int N, double range) {
+  VectorXd v(N);
+  for(int i=0;i<N;++i) {
+    v[i] = (rand()/static_cast<double>(RAND_MAX) - 0.5) * 2.0 * range;
+  }
+  return v;
+}
+
+static VectorXd perturb(const VectorXd& v, double range, const MatrixXd& cov_mat = MatrixXd()) {
+  cout << "perturbation of identity weights ..." << endl;
+  const int N = v.rows();
+  if(cov_mat.rows()==0 || cov_mat.cols()==0) {
+    cout << "empty cov matrix..." << endl;
+    return v + randvec(N, range);
+  } else {
+    VectorXd res = randvec(N, range);
+    for(int i=0;i<N;++i) {
+      res[i] *= cov_mat(i, i);
+    }
+    return v + res;
+  }
 }
 
 static vector<int> FindConsistentSet_kMeans(const MatrixXd& x, int k) {

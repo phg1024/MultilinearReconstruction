@@ -297,7 +297,7 @@ void BasicMesh::Subdivide() {
   ComputeNormals();
 }
 
-void BasicMesh::Write(const string &filename) {
+void BasicMesh::Write(const string &filename) const {
   string content;
   // write verts
   for (int i = 0,offset=0; i < NumVertices(); ++i) {

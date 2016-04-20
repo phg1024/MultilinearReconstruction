@@ -9,7 +9,7 @@ MeshVisualizer::MeshVisualizer(const string &title, const BasicMesh &mesh)
     use_external_rotation_translation(false),
     rot_x(0.0), rot_y(0.0), face_alpha(0.75),
     draw_faces(true), draw_edges(false), draw_points(false),
-    draw_truth(true), draw_synth(true)
+    draw_truth(false), draw_synth(false)
 {
   setWindowTitle(title.c_str());
 }

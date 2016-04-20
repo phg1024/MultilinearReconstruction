@@ -21,6 +21,7 @@ using namespace Eigen;
 #include "costfunctions.h"
 #include "multilinearmodel.h"
 #include "parameters.h"
+#include "statsutils.h"
 #include "utils.hpp"
 
 #include "boost/timer/timer.hpp"
@@ -118,6 +119,10 @@ public:
 
   void SetIndices(const vector<int> &indices_vec) { indices = indices_vec; }
 
+  void SetImageFilename(const string& image_filename_in) {
+    image_filename = image_filename_in;
+  }
+
   vector<int> GetUpdatedIndices() const {
     vector<int> idxs;
     for (size_t i = 0; i < params_recon.cons.size(); ++i) {
@@ -143,7 +148,7 @@ public:
   }
 
 protected:
-  void InitializeParameters();
+  void InitializeParameters(bool with_perturbation=false, double perturb_range=0.0);
 
   void UpdateModels();
 
@@ -177,6 +182,7 @@ private:
   BasicMesh mesh;
 
   QImage img;
+  string image_filename;
 
   CameraParameters params_cam;
   ModelParameters params_model;
@@ -201,7 +207,7 @@ void SingleImageReconstructor<Constraint>::SetInitialParameters(
 }
 
 template <typename Constraint>
-void SingleImageReconstructor<Constraint>::InitializeParameters() {
+void SingleImageReconstructor<Constraint>::InitializeParameters(bool with_perturbation, double perturb_range) {
   boost::timer::auto_cpu_timer timer(
     "Parameters initialization time = %w seconds.\n");
 
@@ -217,6 +223,15 @@ void SingleImageReconstructor<Constraint>::InitializeParameters() {
   // Model parameters
   ModelParameters model_params = ModelParameters::DefaultParameters(prior.Uid,
                                                                     prior.Uexp);
+
+  if(with_perturbation) {
+    // change the identity weights and the experssion weights a little
+    const double range = 0.05;
+    model_params.Wid = StatsUtils::perturb(model_params.Wid, perturb_range, prior.sigma_Wid);
+    model_params.Wexp_FACS = StatsUtils::perturb(model_params.Wexp_FACS, perturb_range);
+    model_params.Wexp_FACS(1) = 1.0;
+    model_params.Wexp = model_params.Wexp_FACS.transpose() * prior.Uexp;
+  }
 
   // No rotation and translation
   model_params.R = Vector3d(1e-3, 1e-3, 1e-3);
@@ -247,126 +262,157 @@ bool SingleImageReconstructor<Constraint>::Reconstruct(OptimizationParameters op
   // Initialize parameters
   cout << "Reconstruction begins." << endl;
 
-  const int num_contour_points = 15;
+  bool iterative_recon_converged = false;
+  int iterative_recon_run_i = 0;
 
-  // Reconstruction begins
-  if (!is_parameters_initialized) {
-    InitializeParameters();
-  }
+  MatrixXd wid_history(opt_params.num_initializations, 50);
 
-  ColorStream(ColorOutput::Red) << "Initial Error = " << ComputeError();
+  while(true) {
 
-  // Optimization parameters
-  const int kMaxIterations = opt_params.max_iters;
-  const double init_weights = 1.0;
-  prior.weight_Wid = opt_params.w_prior_id;
-  const double d_wid = opt_params.d_w_prior_id;
-  prior.weight_Wexp = opt_params.w_prior_exp;
-  const double d_wexp = opt_params.d_w_prior_exp;
-  int iters = 0;
-
-  // Before entering the main loop, estimate the translation and roataion around z-axis first
-  ProcrustesAnalysis();
-
-  for (int i = 0; i < num_contour_points; ++i) {
-    params_recon.cons[i].weight = 0.5;
-  }
-  OptimizeForPosition();
-  for (int i = 0; i < num_contour_points; ++i) {
-    params_recon.cons[i].weight = 1.0;
-  }
-
-  while (iters++ < kMaxIterations) {
-    ColorStream(ColorOutput::Green) << "Iteration " << iters << " begins.";
-    {
-      boost::timer::auto_cpu_timer timer_loop(
-        "[Main loop] Iteration time = %w seconds.\n");
-
-      if((opt_mode & (Identity | Expression))){
-        boost::timer::auto_cpu_timer timer(
-          "[Main loop] Multilinear model weights update time = %w seconds.\n");
-        model.ApplyWeights(params_model.Wid, params_model.Wexp);
+    // Initialize model parameters
+    if(iterative_recon_run_i == 0) {
+      if(!is_parameters_initialized) {
+        InitializeParameters(false);
       }
-      mesh.UpdateVertices(model.GetTM());
-      mesh.ComputeNormals();
+    } else {
+      VectorXd wid_init = params_model.Wid;
 
-      if(opt_mode & Pose) {
-        for (int pose_opt_iter = 0; pose_opt_iter < 1; ++pose_opt_iter) {
-          OptimizeForPose(iters);
-          UpdateContourIndices(iters);
-        }
-      }
+      // use the mean from the previous round as initial parameters
+      params_model.Wid = StatsUtils::mean(wid_history);
 
-      if(opt_mode & Expression) {
-        //OptimizeForExpression(iters*100);
-        OptimizeForExpression_FACS(iters*10);
-      }
+      double wid_diff = (params_model.Wid - wid_init).norm();
+      ColorStream(ColorOutput::Red) << "wid_diff = " << wid_diff;
+      if(wid_diff < opt_params.errorThreshold) break;
+    }
 
-      if(opt_mode & FocalLength) {
-        OptimizeForFocalLength();
-      }
+    VectorXd wid0 = params_model.Wid;
+    for(int run_i = 0; run_i < opt_params.num_initializations; ++run_i) {
+      const int num_contour_points = 15;
 
-      if(opt_mode & Expression){
-        boost::timer::auto_cpu_timer timer(
-          "[Main loop] Multilinear model weights update time = %w seconds.\n");
-        model.ApplyWeights(params_model.Wid, params_model.Wexp);
-      }
-      mesh.UpdateVertices(model.GetTM());
-      mesh.ComputeNormals();
+      // Reconstruction begins
+      params_model.Wid = StatsUtils::perturb(wid0, opt_params.perturbation_range, prior.sigma_Wid);
 
-      if(opt_mode & Pose) {
-        for (int pose_opt_iter = 0; pose_opt_iter < 1; ++pose_opt_iter) {
-          OptimizeForPose(iters);
-          UpdateContourIndices(iters);
-        }
-      }
+      ColorStream(ColorOutput::Red) << "Initial Error = " << ComputeError();
 
-      if(opt_mode & Identity) {
-        OptimizeForIdentity(iters*10);
-      }
+      // Optimization parameters
+      const int kMaxIterations = opt_params.max_iters;
+      const double init_weights = 1.0;
+      prior.weight_Wid = opt_params.w_prior_id;
+      const double d_wid = opt_params.d_w_prior_id;
+      prior.weight_Wexp = opt_params.w_prior_exp;
+      const double d_wexp = opt_params.d_w_prior_exp;
+      int iters = 0;
 
-      if(opt_mode & FocalLength) {
-        OptimizeForFocalLength();
-      }
+      // Before entering the main loop, estimate the translation and roataion around z-axis first
+      ProcrustesAnalysis();
 
-      double E = ComputeError();
-
-      ColorStream(ColorOutput::Red) << "Iteration " << iters << " Error = " <<
-      E;
-
-      // Adjust weights
-      prior.weight_Wid /= d_wid; prior.weight_Wid = max(prior.weight_Wid, 1.0);
-      prior.weight_Wexp /= d_wexp; prior.weight_Wexp = max(prior.weight_Wexp, 1.0);
       for (int i = 0; i < num_contour_points; ++i) {
-        params_recon.cons[i].weight = sqrt(params_recon.cons[i].weight);
+        params_recon.cons[i].weight = 0.5;
       }
+      OptimizeForPosition();
+      for (int i = 0; i < num_contour_points; ++i) {
+        params_recon.cons[i].weight = 1.0;
+      }
+
+      while (iters++ < kMaxIterations) {
+        ColorStream(ColorOutput::Green) << "Iteration " << iters << " begins.";
+        {
+          boost::timer::auto_cpu_timer timer_loop(
+            "[Main loop] Iteration time = %w seconds.\n");
+
+          if((opt_mode & (Identity | Expression))){
+            boost::timer::auto_cpu_timer timer(
+              "[Main loop] Multilinear model weights update time = %w seconds.\n");
+            model.ApplyWeights(params_model.Wid, params_model.Wexp);
+          }
+          mesh.UpdateVertices(model.GetTM());
+          mesh.ComputeNormals();
+
+          if(opt_mode & Pose) {
+            for (int pose_opt_iter = 0; pose_opt_iter < 1; ++pose_opt_iter) {
+              OptimizeForPose(iters);
+              UpdateContourIndices(iters);
+            }
+          }
+
+          if(opt_mode & Expression) {
+            //OptimizeForExpression(iters*100);
+            OptimizeForExpression_FACS(iters*10);
+          }
+
+          if(opt_mode & FocalLength) {
+            OptimizeForFocalLength();
+          }
+
+          if(opt_mode & Expression){
+            boost::timer::auto_cpu_timer timer(
+              "[Main loop] Multilinear model weights update time = %w seconds.\n");
+            model.ApplyWeights(params_model.Wid, params_model.Wexp);
+          }
+          mesh.UpdateVertices(model.GetTM());
+          mesh.ComputeNormals();
+
+          if(opt_mode & Pose) {
+            for (int pose_opt_iter = 0; pose_opt_iter < 1; ++pose_opt_iter) {
+              OptimizeForPose(iters);
+              UpdateContourIndices(iters);
+            }
+          }
+
+          if(opt_mode & Identity) {
+            OptimizeForIdentity(iters*10);
+          }
+
+          if(opt_mode & FocalLength) {
+            OptimizeForFocalLength();
+          }
+
+          double E = ComputeError();
+
+          ColorStream(ColorOutput::Red) << "Iteration " << iters << " Error = " <<
+          E;
+
+          // Adjust weights
+          prior.weight_Wid /= d_wid; prior.weight_Wid = max(prior.weight_Wid, 1.0);
+          prior.weight_Wexp /= d_wexp; prior.weight_Wexp = max(prior.weight_Wexp, 1.0);
+          for (int i = 0; i < num_contour_points; ++i) {
+            params_recon.cons[i].weight = sqrt(params_recon.cons[i].weight);
+          }
+        }
+        ColorStream(ColorOutput::Green) << "Iteration " << iters << " finished.";
+
+        // Visualize reconstruction result
+        if(display_step_result) {
+          auto tm = GetGeometry();
+          mesh.UpdateVertices(tm);
+          auto R = GetRotation();
+          auto T = GetTranslation();
+          auto cam_params = GetCameraParameters();
+
+          MeshVisualizer *w = new MeshVisualizer("reconstruction result " + std::to_string(iters), mesh);
+          w->BindConstraints(params_recon.cons);
+          w->BindImage(img);
+          w->BindLandmarks(GetIndices());
+          w->BindUpdatedLandmarks(GetUpdatedIndices());
+          w->SetMeshRotationTranslation(R, T);
+          w->SetCameraParameters(cam_params);
+
+          double scale = 640.0 / params_cam.image_size.y;
+          w->resize(params_cam.image_size.x * scale, params_cam.image_size.y * scale);
+          w->show();
+        }
+      }
+
+      cout << "Reconstruction done." << endl;
+      model.ApplyWeights(params_model.Wid, params_model.Wexp);
+
+      SaveReconstructionResults(image_filename + "_run_"+ to_string(run_i) + ".res");
+
+      wid_history.row(run_i) = params_model.Wid;
     }
-    ColorStream(ColorOutput::Green) << "Iteration " << iters << " finished.";
 
-    // Visualize reconstruction result
-    if(display_step_result) {
-      auto tm = GetGeometry();
-      mesh.UpdateVertices(tm);
-      auto R = GetRotation();
-      auto T = GetTranslation();
-      auto cam_params = GetCameraParameters();
-
-      MeshVisualizer *w = new MeshVisualizer("reconstruction result " + std::to_string(iters), mesh);
-      w->BindConstraints(params_recon.cons);
-      w->BindImage(img);
-      w->BindLandmarks(GetIndices());
-      w->BindUpdatedLandmarks(GetUpdatedIndices());
-      w->SetMeshRotationTranslation(R, T);
-      w->SetCameraParameters(cam_params);
-
-      double scale = 640.0 / params_cam.image_size.y;
-      w->resize(params_cam.image_size.x * scale, params_cam.image_size.y * scale);
-      w->show();
-    }
+    ++iterative_recon_run_i;
   }
-
-  cout << "Reconstruction done." << endl;
-  model.ApplyWeights(params_model.Wid, params_model.Wexp);
 
   return true;
 }

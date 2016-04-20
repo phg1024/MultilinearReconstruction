@@ -670,4 +670,3 @@ inline ostream& operator<<(ostream& os, const Tensor3& t) {
 }
 
 #endif // TENSOR_HPP
-
