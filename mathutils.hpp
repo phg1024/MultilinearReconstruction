@@ -12,6 +12,7 @@ T rad2deg(T val) {
 }
 
 
+#if 0
 namespace glm {
 template <typename T>
 GLM_FUNC_DECL tmat4x4<T, defaultp> dEulerAngleX(T const & angleX);
@@ -67,8 +68,7 @@ GLM_FUNC_QUALIFIER tmat4x4<T, defaultp> dEulerAngleZ
     T(0),	T(0),	T(1), T(0),
     T(0),	T(0),	T(0), T(1));
 }
-
-
-}
+} // namespace glm
+#endif
 
 #endif // MATHUTILS_HPP
