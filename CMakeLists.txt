@@ -117,10 +117,14 @@ target_link_libraries(tensor ${MKLLIBS})
 add_library(ioutilities ioutilities.cpp)
 target_link_libraries(ioutilities Qt5::Core Qt5::Widgets)
 
+#configure_file(vert.glsl vert.glsl COPYONLY)
+configure_file(frag.glsl frag.glsl COPYONLY)
+
 # Single image reconstruction program
 add_executable(SingleImageReconstruction singleimagereconstruction.cpp singleimagereconstructor.hpp utils.hpp ioutilities.h)
 target_link_libraries(SingleImageReconstruction
                       meshvisualizer
+                      meshvisualizer2
                       multilinearmodel
                       basicmesh
                       ioutilities

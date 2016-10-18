@@ -997,9 +997,10 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
     problem.AddResidualBlock(prior_cost_function, NULL, params.data()+1);
 
     // Expression regularization term, minimize the norm of the expression vector
+    const double reg_factor = 100.0 / puple_distance;
     ceres::DynamicNumericDiffCostFunction<ExpressionRegularizationTerm> *reg_cost_function =
       new ceres::DynamicNumericDiffCostFunction<ExpressionRegularizationTerm>(
-        new ExpressionRegularizationTerm(10.0)
+        new ExpressionRegularizationTerm(10.0 / reg_factor * exp(-(iteration / 10 - 1) * 0.25))
       );
     reg_cost_function->AddParameterBlock(params.size()-1);
     reg_cost_function->SetNumResiduals(params.size()-1);

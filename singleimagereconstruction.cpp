@@ -3,6 +3,7 @@
 
 #include "ioutilities.h"
 #include "meshvisualizer.h"
+#include "meshvisualizer2.h"
 #include "singleimagereconstructor.hpp"
 #include "glog/logging.h"
 #include "boost/timer/timer.hpp"
@@ -96,7 +97,7 @@ int main(int argc, char *argv[]) {
   recon.SetIndices(landmarks);
 
   // Load image related resources
-  auto image_points_pair = LoadImageAndPoints(image_filename, pts_filename);
+  auto image_points_pair = LoadImageAndPoints(image_filename, pts_filename, false);
 
   QImage img = image_points_pair.first;
   auto constraints = image_points_pair.second;
@@ -120,7 +121,7 @@ int main(int argc, char *argv[]) {
   auto T = recon.GetTranslation();
   auto cam_params = recon.GetCameraParameters();
 
-  MeshVisualizer w("reconstruction result", mesh);
+  MeshVisualizer2 w("reconstruction result", mesh);
   w.BindConstraints(constraints);
   w.BindImage(img);
   w.BindLandmarks(recon.GetIndices());
