@@ -64,5 +64,6 @@ int main(int argc, char *argv[]) {
     recon.Reconstruct();
   }
 
-  return a.exec();
+  //return a.exec();
+  return 0;
 }
