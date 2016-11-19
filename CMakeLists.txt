@@ -132,7 +132,23 @@ target_link_libraries(SingleImageReconstruction
                       Qt5::Core
                       Qt5::Widgets
                       Qt5::OpenGL
-		              Qt5::Test
+                      Qt5::Test
+                      ${MKLLIBS}
+                      ${PhGLib})
+
+# Single image reconstruction with blendshapes program
+add_executable(SingleImageReconstruction_exp singleimagereconstruction_exp.cpp singleimagereconstructor_exp.hpp utils.hpp ioutilities.h)
+target_link_libraries(SingleImageReconstruction_exp
+                      meshvisualizer
+                      meshvisualizer2
+                      multilinearmodel
+                      basicmesh
+                      ioutilities
+                      tensor
+                      Qt5::Core
+                      Qt5::Widgets
+                      Qt5::OpenGL
+                      Qt5::Test
                       ${MKLLIBS}
                       ${PhGLib})
 
