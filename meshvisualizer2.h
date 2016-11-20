@@ -39,6 +39,11 @@ public slots:
     translation_vector_in = T;
   }
 
+  void SetFaceAlpha(double val) {
+    face_alpha = val;
+    repaint();
+  }
+
 protected:
   void CreateTexture();
 

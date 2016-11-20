@@ -247,6 +247,8 @@ void SingleImageReconstructor<Constraint>::UpdateModels() {
   for (size_t i = 0; i < indices.size(); ++i) {
     params_recon.cons[i].vidx = indices[i];
     params_recon.cons[i].weight = 1.0;
+
+    params_model.vindices(i) = indices[i];
   }
 
   // Create initial projected models
@@ -1314,6 +1316,7 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices(int iterations) 
       //cout << i << ": " << indices[i] << " -> " << candidates[min_iter - dists.begin()].first << endl;
       indices[i] = (*candidates)[min_iter - dists.begin()].first;
       params_recon.cons[i].vidx = (*candidates)[min_iter - dists.begin()].first;
+      params_model.vindices(i) = params_recon.cons[i].vidx;
       model_projected[i] = model.project(vector<int>(1, indices[i]));
       model_projected[i].ApplyWeights(params_model.Wid, params_model.Wexp);
     }

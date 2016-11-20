@@ -724,6 +724,8 @@ struct ExpressionCostFunction_FACS_analytic : public ceres::CostFunction {
     mutable_parameter_block_sizes()->clear();
     mutable_parameter_block_sizes()->push_back(params_length - 1);
     set_num_residuals(1);
+
+    cout << "points_in: " << points_in.rows() << " x " << points_in.cols() << endl;
   }
 
   // TODO update the reference function
@@ -774,6 +776,7 @@ struct ExpressionCostFunction_FACS_analytic : public ceres::CostFunction {
 
   bool Evaluate(const double *const *wexp, double *residuals,
                 double **jacobians) const {
+    cout << "before: " << points_in.rows() << " x " << points_in.cols() << endl;
 #if 0
     VectorXd wexp_vec = Map<const VectorXd>(wexp[0], params_length).eval();
 #else
@@ -784,11 +787,16 @@ struct ExpressionCostFunction_FACS_analytic : public ceres::CostFunction {
 
     VectorXd weights = (wexp_vec.transpose() * Uexp).eval();
 
+    //cout << "wexp_vec: " << wexp_vec.transpose().eval() << endl;
+    //cout << "points_in: " << points_in.eval() << endl;
+    cout << points_in.rows() << " x " << points_in.cols() << endl;
+
     // Apply the weight vector to the model
     Vector3d tm(0, 0, 0);
     for(int j=0;j<params_length;++j) {
       tm += points_in.row(j) * wexp_vec[j];
     }
+    cout << tm << endl;
 
     // Project the point to image plane
     glm::dvec3 p(tm[0], tm[1], tm[2]);
@@ -842,7 +850,7 @@ struct ExpressionCostFunction_FACS_analytic : public ceres::CostFunction {
       }
 
       // tm0 is a ndims_exp x 3 matrix, where each row is x, y, z
-      auto& tm0 = points_in;
+      auto tm0 = points_in;
       auto J = (scale_factor * fvec.transpose() * Jh * R * tm0.transpose() *
                 Uexp.transpose() * D).eval();
 
@@ -852,7 +860,7 @@ struct ExpressionCostFunction_FACS_analytic : public ceres::CostFunction {
     return true;
   }
 
-  const MatrixX3d& points_in;
+  MatrixX3d points_in;
   Constraint2D constraint;
   int params_length;
   glm::dmat4 Mview, Rmat;

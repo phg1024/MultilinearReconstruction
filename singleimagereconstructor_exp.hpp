@@ -95,7 +95,10 @@ public:
 
   const ModelParameters &GetModelParameters() const { return params_model; }
 
-  void SetModelParameters(const ModelParameters& params) { params_model = params; }
+  void SetModelParameters(const ModelParameters& params) {
+    params_model = params;
+    for(int i=0;i<indices.size();++i) indices[i] = params.vindices(i);
+  }
 
   void SetIdentityPrior(const VectorXd& mu_id) {
     prior.Wid0 = mu_id;
@@ -277,9 +280,9 @@ void SingleImageReconstructor<Constraint>::UpdateModels() {
 template <typename Constraint>
 void SingleImageReconstructor<Constraint>::LoadBlendshapes(const string& blendshapes_path) {
   const int num_blendshapes = 46;
-  blendshapes.resize(num_blendshapes);
+  blendshapes.resize(num_blendshapes + 1);
   for(int i=0;i<=num_blendshapes;++i) {
-    blendshapes[i].LoadOBJMesh(blendshapes_path + "B_" + to_string(i) + ".obj");
+    blendshapes[i].LoadOBJMesh(blendshapes_path + "/" + "B_" + to_string(i) + ".obj");
     blendshapes[i].ComputeNormals();
   }
 
@@ -288,13 +291,15 @@ void SingleImageReconstructor<Constraint>::LoadBlendshapes(const string& blendsh
 
 template<typename Constraint>
 void SingleImageReconstructor<Constraint>::ApplyWeights() {
+  cout << "Applying weights ..." << endl;
+  //cout << params_model.Wexp_FACS << endl;
   // Create initial shape
   const int num_blendshapes = 46;
   current_shape.resize(params_recon.cons.size());
   for(size_t i = 0; i < params_recon.cons.size(); ++i) {
     Vector3d pi0 = blendshapes[0].vertex(params_recon.cons[i].vidx);
     Vector3d pi = pi0;
-    for(int j=1;j<num_blendshapes;++j) {
+    for(int j=1;j<=num_blendshapes;++j) {
       pi += (blendshapes[j].vertex(params_recon.cons[i].vidx) - pi0) * params_model.Wexp_FACS(j);
     }
     current_shape[i] = pi;
@@ -306,7 +311,7 @@ void SingleImageReconstructor<Constraint>::UpdateMesh() {
   const int num_blendshapes = 46;
   MatrixX3d verts0 = blendshapes[0].vertices();
   MatrixX3d verts = verts0;
-  for(int j=1;j<num_blendshapes;++j) {
+  for(int j=1;j<=num_blendshapes;++j) {
     verts += (blendshapes[j].vertices() - verts0) * params_model.Wexp_FACS(j);
   }
   mesh.vertices() = verts;
@@ -497,12 +502,16 @@ double SingleImageReconstructor<Constraint>::ComputeError() {
     0.5 * (params_recon.cons[28].data + params_recon.cons[30].data),
     0.5 * (params_recon.cons[32].data + params_recon.cons[34].data));
 
+  cout << params_recon.cons.size() << endl;
+  cout << current_shape.size() << endl;
+
   double E = 0;
   double max_error = 0, min_error = 1e9;
   for (size_t i = 0; i < indices.size(); ++i) {
-    auto &model_i = model_projected[i];
+    //auto &model_i = model_projected[i];
     //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
-    auto tm = model_i.GetTM();
+    //auto tm = model_i.GetTM();
+    auto& tm = current_shape[i];
     glm::dvec3 p(tm[0], tm[1], tm[2]);
     auto q = ProjectPoint(p, Mview, params_cam);
     double dx = q.x - params_recon.cons[i].data.x;
@@ -1026,6 +1035,8 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
   ceres::Problem problem;
 
   VectorXd params = params_model.Wexp_FACS;
+  cout << "params: " << params.transpose().eval() << endl;
+  cout << params.size() << endl;
 
   {
     boost::timer::auto_cpu_timer timer_construction(
@@ -1033,10 +1044,11 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
     for (size_t i = 0; i < indices.size(); ++i) {
       //auto &model_i = model_projected[i];
 
-      MatrixX3d points_i;
+      MatrixX3d points_i(params.size(), 3);
       for(int j=0;j<params.size();++j) {
         points_i.row(j) = blendshapes[j].vertex(params_recon.cons[i].vidx);
       }
+      cout << points_i.rows() << " x " << points_i.cols() << endl;
 
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
 #if USE_ANALYTIC_COST_FUNCTIONS
@@ -1094,8 +1106,8 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
     ceres::Solver::Options options;
     options.max_num_iterations = iteration;
 
-    options.num_threads = 8;
-    options.num_linear_solver_threads = 8;
+    //options.num_threads = 8;
+    //options.num_linear_solver_threads = 8;
 
 #if 1
     options.initial_trust_region_radius = 1.0;

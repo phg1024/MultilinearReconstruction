@@ -101,7 +101,6 @@ int main(int argc, char *argv[]) {
 
   // Create reconstructor and load the common resources
   SingleImageReconstructor<Constraint2D> recon;
-  recon.LoadBlendshapes(blendshapes_path);
   recon.LoadModel(model_filename);
   recon.LoadPriors(id_prior_filename, exp_prior_filename);
   recon.SetMesh(mesh);
@@ -124,6 +123,11 @@ int main(int argc, char *argv[]) {
     | SingleImageReconstructor<Constraint2D>::Expression
     | SingleImageReconstructor<Constraint2D>::FocalLength));
 
+  // Load the initial recon results and blendshapes
+  auto recon_results = LoadReconstructionResult(init_recon_filename);
+  recon.SetInitialParameters(recon_results.params_model, recon_results.params_cam);
+  recon.LoadBlendshapes(blendshapes_path);
+
   // Do reconstruction
   {
     boost::timer::auto_cpu_timer t("Reconstruction finished in %w seconds.\n");
@@ -131,9 +135,11 @@ int main(int argc, char *argv[]) {
   }
 
   // Visualize reconstruction result
-  auto tm = recon.GetGeometry();
-  mesh.UpdateVertices(tm);
-  mesh.ComputeNormals();
+  //auto tm = recon.GetGeometry();
+  //mesh.UpdateVertices(tm);
+  //mesh.ComputeNormals();
+  mesh = recon.GetMesh();
+
   auto R = recon.GetRotation();
   auto T = recon.GetTranslation();
   auto cam_params = recon.GetCameraParameters();
@@ -152,12 +158,13 @@ int main(int argc, char *argv[]) {
 
   // Save the reconstruction results
   // w_id, w_exp, rotation, translation, camera parameters
-  recon.SaveReconstructionResults(image_filename + ".res");
+  recon.SaveReconstructionResults( (recon_path / image_path.filename()).string() + ".res" );
 
   {
     //QImage I(img.width(), img.height(), QImage::Format_ARGB32);
     //QPainter painter(&I);
     //w.render(&painter);
+    w.SetFaceAlpha(1.0);
     w.paintGL();
     QImage I = w.grabFrameBuffer();
     I.save( (recon_path / image_path.filename()).string().c_str() );
