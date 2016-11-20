@@ -18,7 +18,7 @@ using namespace Eigen;
 #include "basicmesh.h"
 #include "common.h"
 #include "constraints.h"
-#include "costfunctions.h"
+#include "costfunctions_exp.h"
 #include "multilinearmodel.h"
 #include "parameters.h"
 #include "statsutils.h"
@@ -162,6 +162,10 @@ protected:
 
   void UpdateModels();
 
+  void ApplyWeights();
+
+  void UpdateMesh();
+
   void ProcrustesAnalysis();
 
   void OptimizeForPosition();
@@ -274,20 +278,39 @@ template <typename Constraint>
 void SingleImageReconstructor<Constraint>::LoadBlendshapes(const string& blendshapes_path) {
   const int num_blendshapes = 46;
   blendshapes.resize(num_blendshapes);
-  for(int i=0;i<num_blendshapes;++i) {
+  for(int i=0;i<=num_blendshapes;++i) {
     blendshapes[i].LoadOBJMesh(blendshapes_path + "B_" + to_string(i) + ".obj");
     blendshapes[i].ComputeNormals();
   }
 
+  ApplyWeights();
+}
+
+template<typename Constraint>
+void SingleImageReconstructor<Constraint>::ApplyWeights() {
   // Create initial shape
+  const int num_blendshapes = 46;
   current_shape.resize(params_recon.cons.size());
   for(size_t i = 0; i < params_recon.cons.size(); ++i) {
-    Vector3d pi(0, 0, 0);
-    for(int j=0;j<num_blendshapes;++j) {
-      pi += blendshapes[i].vertex(params_recon.cons[i].vidx) * params_model.Wexp_FACS(j);
+    Vector3d pi0 = blendshapes[0].vertex(params_recon.cons[i].vidx);
+    Vector3d pi = pi0;
+    for(int j=1;j<num_blendshapes;++j) {
+      pi += (blendshapes[j].vertex(params_recon.cons[i].vidx) - pi0) * params_model.Wexp_FACS(j);
     }
     current_shape[i] = pi;
   }
+}
+
+template<typename Constraint>
+void SingleImageReconstructor<Constraint>::UpdateMesh() {
+  const int num_blendshapes = 46;
+  MatrixX3d verts0 = blendshapes[0].vertices();
+  MatrixX3d verts = verts0;
+  for(int j=1;j<num_blendshapes;++j) {
+    verts += (blendshapes[j].vertices() - verts0) * params_model.Wexp_FACS(j);
+  }
+  mesh.vertices() = verts;
+  mesh.ComputeNormals();
 }
 
 template<typename Constraint>
@@ -337,7 +360,8 @@ bool SingleImageReconstructor<Constraint>::Reconstruct(OptimizationParameters op
       int iters = 0;
 
       // Before entering the main loop, estimate the translation and roataion around z-axis first
-      ProcrustesAnalysis();
+      // No need to do this since the translation and rotation are initialized
+      // ProcrustesAnalysis();
 
       for (int i = 0; i < num_contour_points; ++i) {
         params_recon.cons[i].weight = 0.5;
@@ -356,10 +380,12 @@ bool SingleImageReconstructor<Constraint>::Reconstruct(OptimizationParameters op
           if((opt_mode & (Identity | Expression))){
             boost::timer::auto_cpu_timer timer(
               "[Main loop] Multilinear model weights update time = %w seconds.\n");
-            model.ApplyWeights(params_model.Wid, params_model.Wexp);
+            //model.ApplyWeights(params_model.Wid, params_model.Wexp);
+            ApplyWeights();
           }
-          mesh.UpdateVertices(model.GetTM());
-          mesh.ComputeNormals();
+          //mesh.UpdateVertices(model.GetTM());
+          //mesh.ComputeNormals();
+          UpdateMesh();
 
           if(opt_mode & Pose) {
             for (int pose_opt_iter = 0; pose_opt_iter < 1; ++pose_opt_iter) {
@@ -380,10 +406,12 @@ bool SingleImageReconstructor<Constraint>::Reconstruct(OptimizationParameters op
           if(opt_mode & Expression){
             boost::timer::auto_cpu_timer timer(
               "[Main loop] Multilinear model weights update time = %w seconds.\n");
-            model.ApplyWeights(params_model.Wid, params_model.Wexp);
+            //model.ApplyWeights(params_model.Wid, params_model.Wexp);
+            ApplyWeights();
           }
-          mesh.UpdateVertices(model.GetTM());
-          mesh.ComputeNormals();
+          //mesh.UpdateVertices(model.GetTM());
+          //mesh.ComputeNormals();
+          UpdateMesh();
 
           if(opt_mode & Pose) {
             for (int pose_opt_iter = 0; pose_opt_iter < 1; ++pose_opt_iter) {
@@ -416,8 +444,9 @@ bool SingleImageReconstructor<Constraint>::Reconstruct(OptimizationParameters op
 
         // Visualize reconstruction result
         if(display_step_result) {
-          auto tm = GetGeometry();
-          mesh.UpdateVertices(tm);
+          //auto tm = GetGeometry();
+          //mesh.UpdateVertices(tm);
+          UpdateMesh();
           auto R = GetRotation();
           auto T = GetTranslation();
           auto cam_params = GetCameraParameters();
@@ -437,9 +466,9 @@ bool SingleImageReconstructor<Constraint>::Reconstruct(OptimizationParameters op
       }
 
       cout << "Reconstruction done." << endl;
-      model.ApplyWeights(params_model.Wid, params_model.Wexp);
+      //model.ApplyWeights(params_model.Wid, params_model.Wexp);
 
-      SaveReconstructionResults(image_filename + "_run_"+ to_string(run_i) + ".res");
+      //SaveReconstructionResults(image_filename + "_run_"+ to_string(run_i) + ".res");
 
       wid_history.row(run_i) = params_model.Wid;
     }
@@ -557,11 +586,12 @@ void SingleImageReconstructor<Constraint>::OptimizeForPosition() {
       "[Position optimization] Problem construction time = %w seconds.\n");
 
     for (size_t i = 0; i < indices.size(); ++i) {
-      auto &model_i = model_projected[i];
+      //auto &model_i = model_projected[i];
+      auto &point_i = current_shape[i];
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
 #if USE_ANALYTIC_COST_FUNCTIONS
       ceres::CostFunction *cost_function = new PositionCostFunction_analytic(
-        model_i,
+        point_i,
         params_recon.cons[i],
         params_cam,
         params_model.R[2]);
@@ -773,7 +803,8 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose(int iteration) {
       "[Pose optimization] Problem construction time = %w seconds.\n");
 
     for (size_t i = 0; i < indices.size(); ++i) {
-      auto &model_i = model_projected[i];
+      //auto &model_i = model_projected[i];
+      auto &point_i = current_shape[i];
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
       Constraint2D cons_i = params_recon.cons[i];
       if(i<15) cons_i.weight = 0.3 * iteration;
@@ -782,7 +813,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose(int iteration) {
 
 #if USE_ANALYTIC_COST_FUNCTIONS
       ceres::CostFunction *cost_function =
-        new PoseCostFunction_analytic(model_i, cons_i,
+        new PoseCostFunction_analytic(point_i, cons_i,
                                       params_cam);
       problem.AddResidualBlock(cost_function, NULL, params.data(),
                                params.data() + 3);
@@ -862,12 +893,17 @@ void SingleImageReconstructor<Constraint>::OptimizeForFocalLength() {
 
   double numer = 0.0, denom = 0.0;
   const double sx = params_cam.image_size.x, sy = params_cam.image_size.y;
-  for (size_t i = 0; i < indices.size(); ++i) {
-    auto &model_i = model_projected[i];
-    // Must apply weights here because the weights are just updated
-    model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
 
-    auto tm = model_i.GetTM();
+  // Make sure the new weights is applied to the current shape
+  ApplyWeights();
+
+  for (size_t i = 0; i < indices.size(); ++i) {
+    //auto &model_i = model_projected[i];
+    // Must apply weights here because the weights are just updated
+    //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
+
+    //auto tm = model_i.GetTM();
+    auto tm = current_shape[i];
     glm::dvec4 p(tm[0], tm[1], tm[2], 1.0);
     auto P = Mview * p;
 
@@ -995,11 +1031,17 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
     boost::timer::auto_cpu_timer timer_construction(
       "[Expression optimization] Problem construction time = %w seconds.\n");
     for (size_t i = 0; i < indices.size(); ++i) {
-      auto &model_i = model_projected[i];
+      //auto &model_i = model_projected[i];
+
+      MatrixX3d points_i;
+      for(int j=0;j<params.size();++j) {
+        points_i.row(j) = blendshapes[j].vertex(params_recon.cons[i].vidx);
+      }
+
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
 #if USE_ANALYTIC_COST_FUNCTIONS
       ceres::CostFunction *cost_function = new ExpressionCostFunction_FACS_analytic(
-        model_i, params_recon.cons[i], params.size(), Mview, Rmat, prior.Uexp,
+        points_i, params_recon.cons[i], params.size(), Mview, Rmat, prior.Uexp,
         params_cam);
 #else
       ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction_FACS> *cost_function =
@@ -1347,8 +1389,9 @@ void SingleImageReconstructor<Constraint>::UpdateContourIndices(int iterations) 
       //cout << i << ": " << indices[i] << " -> " << candidates[min_iter - dists.begin()].first << endl;
       indices[i] = (*candidates)[min_iter - dists.begin()].first;
       params_recon.cons[i].vidx = (*candidates)[min_iter - dists.begin()].first;
-      model_projected[i] = model.project(vector<int>(1, indices[i]));
-      model_projected[i].ApplyWeights(params_model.Wid, params_model.Wexp);
+
+      //model_projected[i] = model.project(vector<int>(1, indices[i]));
+      //model_projected[i].ApplyWeights(params_model.Wid, params_model.Wexp);
     }
   }
 }
