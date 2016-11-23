@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
     ("error_diff_thres", po::value<double>(), "Error difference threhsold")
     ("vis,v", "Visualize reconstruction results");
   po::variables_map vm;
-  
+
   OptimizationParameters opt_params = OptimizationParameters::Defaults();
 
   string image_filename, pts_filename;
@@ -80,11 +80,21 @@ int main(int argc, char *argv[]) {
   google::InitGoogleLogging(argv[0]);
 
   fs::path image_path(image_filename);
-  fs::path recon_path = image_path.parent_path() / ("iteration_" + to_string(iteration)) / "recon";
 
   if ( !fs::exists(image_filename) || !fs::exists(pts_filename) ){
     cout << "Either image file or points file is missing. Abort." << endl;
     return -1;
+  }
+
+  fs::path recon_path = image_path.parent_path() / ("iteration_" + to_string(iteration)) / "recon";
+  if(!fs::exists(recon_path)) {
+    try{
+      cout << "Creating blendshapes directory " << recon_path.string() << endl;
+      fs::create_directory(recon_path);
+    } catch(exception& e) {
+      cout << e.what() << endl;
+      exit(1);
+    }
   }
 
   const string model_filename("/home/phg/Data/Multilinear/blendshape_core.tensor");
@@ -167,7 +177,9 @@ int main(int argc, char *argv[]) {
     //w.render(&painter);
     w.SetFaceAlpha(1.0);
     w.paintGL();
+    for(int i=0;i<10;++i) qApp->processEvents();
     QImage I = w.grabFrameBuffer();
+    qApp->processEvents();
     I.save( (recon_path / image_path.filename()).string().c_str() );
   }
 
