@@ -34,6 +34,7 @@ int main(int argc, char *argv[]) {
     ("error_diff_thres", po::value<double>(), "Error difference threhsold")
     ("vis,v", "Visualize reconstruction results");
   po::variables_map vm;
+  
   OptimizationParameters opt_params = OptimizationParameters::Defaults();
 
   string image_filename, pts_filename;
