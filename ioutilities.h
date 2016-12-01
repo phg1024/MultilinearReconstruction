@@ -22,7 +22,7 @@ inline istream& operator>>(istream& is, Constraint2D& c);
 
 vector<Constraint2D> LoadConstraints(const string& filename);
 pair<QImage, vector<Constraint2D>> LoadImageAndPoints(
-  const string &image_filename, const string &pts_filename);
+  const string &image_filename, const string &pts_filename, bool resize=true);
 vector<pair<string, string>> ParseSettingsFile(const string &filename);
 ReconstructionResult LoadReconstructionResult(const string &filename);
 

@@ -64,6 +64,8 @@ struct ModelParameters {
     model_params.R = Vector3d(1e-3, 1e-3, 1e-3);
     model_params.T = Vector3d(0, 0, -1.0);
 
+    model_params.vindices = VectorXi::Zero(ModelParameters::nVertices);
+
     return model_params;
   }
 
@@ -71,21 +73,25 @@ struct ModelParameters {
   friend ostream& operator<<(ostream& os, const ModelParameters& params);
 
   static const int nFACSDim = 47;
+  static const int nVertices = 73;
   VectorXd Wid;               // identity weights
   VectorXd Wexp, Wexp_FACS;   // expression weights
-  Vector3d R;              // rotation
+  Vector3d R;                 // rotation
   Vector3d T;                 // translation
+  VectorXi vindices;          // vertex indices
 };
 
 namespace {
-  void write_vector(ostream& os, const VectorXd& v) {
+  template <typename T>
+  void write_vector(ostream& os, const Matrix<T, Dynamic, 1>& v) {
     os << v.rows() << ' ';
     for(int i=0;i<v.rows();++i) {
       os << v(i) << ' ';
     }
     os << endl;
   }
-  void read_vector(istream& is, VectorXd& v) {
+  template <typename T>
+  void read_vector(istream& is, Matrix<T, Dynamic, 1>& v) {
     int nrows;
     is >> nrows;
     v.resize(nrows, 1);
@@ -99,6 +105,7 @@ inline istream& operator>>(istream& is, ModelParameters& params) {
   read_vector(is, params.Wexp_FACS);
   is >> params.R(0) >> params.R(1) >> params.R(2);
   is >> params.T(0) >> params.T(1) >> params.T(2);
+  read_vector(is, params.vindices);
   return is;
 }
 
@@ -107,7 +114,8 @@ inline ostream& operator<<(ostream& os, const ModelParameters& params) {
   write_vector(os, params.Wexp);
   write_vector(os, params.Wexp_FACS);
   os << params.R(0) << ' ' << params.R(1) << ' ' << params.R(2) << endl;
-  os << params.T(0) << ' ' << params.T(1) << ' ' << params.T(2);
+  os << params.T(0) << ' ' << params.T(1) << ' ' << params.T(2) << endl;
+  write_vector(os, params.vindices);
   return os;
 }
 

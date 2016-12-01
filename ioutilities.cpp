@@ -86,7 +86,7 @@ vector<Constraint2D> LoadConstraints(const string& filename) {
 }
 
 pair<QImage, vector<Constraint2D>> LoadImageAndPoints(
-  const string &image_filename, const string &pts_filename) {
+  const string &image_filename, const string &pts_filename, bool resize) {
   QImage img(image_filename.c_str());
 
   auto constraints = LoadConstraints(pts_filename);
@@ -96,7 +96,7 @@ pair<QImage, vector<Constraint2D>> LoadImageAndPoints(
     0.5 * (constraints[28].data + constraints[30].data),
     0.5 * (constraints[32].data + constraints[34].data));
   const double reference_distance = 100.0;
-  double scale_ratio = reference_distance / puple_distance;
+  double scale_ratio = resize ? reference_distance / puple_distance : 1.0;
 
   // Scale the image
   img = img.scaled(img.width() * scale_ratio, img.height() * scale_ratio,

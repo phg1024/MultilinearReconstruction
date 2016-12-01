@@ -117,10 +117,14 @@ target_link_libraries(tensor ${MKLLIBS})
 add_library(ioutilities ioutilities.cpp)
 target_link_libraries(ioutilities Qt5::Core Qt5::Widgets)
 
+#configure_file(vert.glsl vert.glsl COPYONLY)
+configure_file(frag.glsl frag.glsl COPYONLY)
+
 # Single image reconstruction program
 add_executable(SingleImageReconstruction singleimagereconstruction.cpp singleimagereconstructor.hpp utils.hpp ioutilities.h)
 target_link_libraries(SingleImageReconstruction
                       meshvisualizer
+                      meshvisualizer2
                       multilinearmodel
                       basicmesh
                       ioutilities
@@ -128,7 +132,23 @@ target_link_libraries(SingleImageReconstruction
                       Qt5::Core
                       Qt5::Widgets
                       Qt5::OpenGL
-		              Qt5::Test
+                      Qt5::Test
+                      ${MKLLIBS}
+                      ${PhGLib})
+
+# Single image reconstruction with blendshapes program
+add_executable(SingleImageReconstruction_exp singleimagereconstruction_exp.cpp singleimagereconstructor_exp.hpp utils.hpp ioutilities.h)
+target_link_libraries(SingleImageReconstruction_exp
+                      meshvisualizer
+                      meshvisualizer2
+                      multilinearmodel
+                      basicmesh
+                      ioutilities
+                      tensor
+                      Qt5::Core
+                      Qt5::Widgets
+                      Qt5::OpenGL
+                      Qt5::Test
                       ${MKLLIBS}
                       ${PhGLib})
 

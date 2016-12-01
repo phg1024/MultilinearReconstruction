@@ -216,6 +216,8 @@ cv::Mat MeanShiftSegmentation(const cv::Mat& x, double hs, double hr, double th)
     weight_map[i] = exp(-i/(hr*hr));
   }
 
+  const int max_iters = 16;
+
   cv::Mat y = x.clone();
 
   while(!done) {
@@ -309,7 +311,7 @@ cv::Mat MeanShiftSegmentation(const cv::Mat& x, double hs, double hr, double th)
       }
     }
 
-    if(yMS<=th) {
+    if(yMS<=th || iters > max_iters) {
       done = true;
     }
   }

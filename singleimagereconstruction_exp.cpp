@@ -1,10 +1,14 @@
+/*
+This program takes a set of blendshapes, as well as a set of initial guess of
+pose and expression weights, and estimates optimal pose and expression weights.
+*/
 #include <QApplication>
 #include <GL/freeglut_std.h>
 
 #include "ioutilities.h"
 #include "meshvisualizer.h"
 #include "meshvisualizer2.h"
-#include "singleimagereconstructor.hpp"
+#include "singleimagereconstructor_exp.hpp"
 #include "glog/logging.h"
 #include "boost/timer/timer.hpp"
 #include "boost/filesystem.hpp"
@@ -18,20 +22,24 @@ int main(int argc, char *argv[]) {
     ("help", "Print help messages")
     ("img", po::value<string>()->required(), "Input image file")
     ("pts", po::value<string>()->required(), "Input points file")
-    ("wid", po::value<float>(), "Initial identity weight.")
-    ("dwid", po::value<float>(), "Identity weight step")
+    ("blendshapes_path", po::value<string>()->required(), "Input blendshapes path.")
+    ("init_recon", po::value<string>()->required(), "Initial reconstruction parameters.")
+    ("iter", po::value<int>()->required(), "The iteration number.")
     ("wexp", po::value<float>(), "Initial expression weight")
     ("dwexp", po::value<float>(), "Expression weight step")
-    ("iters", po::value<int>(), "Maximum iterations")
+    ("maxiters", po::value<int>(), "Maximum iterations")
     ("inits", po::value<int>(), "Number of initializations")
     ("perturb_range", po::value<double>(), "Range of perturbation")
     ("error_thres", po::value<double>(), "Error threhsold")
     ("error_diff_thres", po::value<double>(), "Error difference threhsold")
     ("vis,v", "Visualize reconstruction results");
   po::variables_map vm;
+
   OptimizationParameters opt_params = OptimizationParameters::Defaults();
 
   string image_filename, pts_filename;
+  string blendshapes_path, init_recon_filename;
+  int iteration;
   bool visualize_results = false;
 
   try {
@@ -52,8 +60,12 @@ int main(int argc, char *argv[]) {
     if(vm.count("error_thres")) opt_params.errorThreshold = vm["error_thres"].as<double>();
     if(vm.count("error_diff_thres")) opt_params.errorDiffThreshold = vm["error_diff_thres"].as<double>();
     if(vm.count("-v") || vm.count("vis")) visualize_results = true;
+
     image_filename = vm["img"].as<string>();
     pts_filename = vm["pts"].as<string>();
+    blendshapes_path = vm["blendshapes_path"].as<string>();
+    init_recon_filename = vm["init_recon"].as<string>();
+    iteration = vm["iter"].as<int>();
 
   } catch(po::error& e) {
     cerr << "Error: " << e.what() << endl;
@@ -68,11 +80,21 @@ int main(int argc, char *argv[]) {
   google::InitGoogleLogging(argv[0]);
 
   fs::path image_path(image_filename);
-  fs::path recon_path = image_path.parent_path() / "recon";
 
   if ( !fs::exists(image_filename) || !fs::exists(pts_filename) ){
     cout << "Either image file or points file is missing. Abort." << endl;
     return -1;
+  }
+
+  fs::path recon_path = image_path.parent_path() / ("iteration_" + to_string(iteration)) / "recon";
+  if(!fs::exists(recon_path)) {
+    try{
+      cout << "Creating blendshapes directory " << recon_path.string() << endl;
+      fs::create_directory(recon_path);
+    } catch(exception& e) {
+      cout << e.what() << endl;
+      exit(1);
+    }
   }
 
   const string model_filename("/home/phg/Data/Multilinear/blendshape_core.tensor");
@@ -106,6 +128,16 @@ int main(int argc, char *argv[]) {
   recon.SetImageSize(img.width(), img.height());
   recon.SetConstraints(constraints);
   recon.SetImageFilename(image_filename);
+  recon.SetOptimizationMode(
+    SingleImageReconstructor<Constraint2D>::OptimizationMode(
+      SingleImageReconstructor<Constraint2D>::Pose
+    | SingleImageReconstructor<Constraint2D>::Expression
+    | SingleImageReconstructor<Constraint2D>::FocalLength));
+
+  // Load the initial recon results and blendshapes
+  auto recon_results = LoadReconstructionResult(init_recon_filename);
+  recon.SetInitialParameters(recon_results.params_model, recon_results.params_cam);
+  recon.LoadBlendshapes(blendshapes_path);
 
   // Do reconstruction
   {
@@ -114,9 +146,11 @@ int main(int argc, char *argv[]) {
   }
 
   // Visualize reconstruction result
-  auto tm = recon.GetGeometry();
-  mesh.UpdateVertices(tm);
-  mesh.ComputeNormals();
+  //auto tm = recon.GetGeometry();
+  //mesh.UpdateVertices(tm);
+  //mesh.ComputeNormals();
+  mesh = recon.GetMesh();
+
   auto R = recon.GetRotation();
   auto T = recon.GetTranslation();
   auto cam_params = recon.GetCameraParameters();
@@ -135,14 +169,17 @@ int main(int argc, char *argv[]) {
 
   // Save the reconstruction results
   // w_id, w_exp, rotation, translation, camera parameters
-  recon.SaveReconstructionResults(image_filename + ".res");
+  recon.SaveReconstructionResults( (recon_path / image_path.filename()).string() + ".res" );
 
   {
     //QImage I(img.width(), img.height(), QImage::Format_ARGB32);
     //QPainter painter(&I);
     //w.render(&painter);
+    w.SetFaceAlpha(1.0);
     w.paintGL();
+    for(int i=0;i<10;++i) qApp->processEvents();
     QImage I = w.grabFrameBuffer();
+    qApp->processEvents();
     I.save( (recon_path / image_path.filename()).string().c_str() );
   }
 
