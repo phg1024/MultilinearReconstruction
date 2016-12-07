@@ -25,6 +25,16 @@ find_package(Boost COMPONENTS filesystem timer program_options REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 link_libraries(${Boost_LIBRARIES} -lboost_filesystem -lboost_system)
 
+# OpenCV
+find_package( OpenCV REQUIRED )
+if (OpenCV_FOUND)
+  message("-- Found OpenCV")
+  message("-- Linking with OpenCV libraries: ${OpenCV_LIBS}")
+  link_libraries(${OpenCV_LIBS})
+else (OpenCV_FOUND)
+  message("-- OpenCV not found.")
+endif()
+
 # OpenMP
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
 
