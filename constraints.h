@@ -3,7 +3,11 @@
 
 #include "common.h"
 
-#include "glm/glm.hpp"
+#define GLM_ENFORCE_SWIZZLE
+//#include "glm/glm.hpp"
+#include "glm/vector_relational.hpp"
+#include "glm/vec2.hpp"
+#include "glm/vec3.hpp"
 
 #ifndef MKL_BLAS
 #define MKL_BLAS MKL_DOMAIN_BLAS
@@ -30,4 +34,3 @@ using Constraint3D = Constraint<glm::dvec3>;
 using Constraint2D_Depth = Constraint<glm::dvec3>;
 
 #endif // CONSTRAINTS_H
-

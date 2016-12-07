@@ -38,10 +38,10 @@ inline istream& operator>>(istream& is, CameraParameters& params) {
 }
 
 inline ostream& operator<<(ostream& os, const CameraParameters& params) {
-  os << params.fovy << endl;
-  os << params.far << endl;
-  os << params.focal_length << endl;
-  os << params.image_plane_center.x << ' ' << params.image_plane_center.y << endl;
+  os << params.fovy << "\n";
+  os << params.far << "\n";
+  os << params.focal_length << "\n";
+  os << params.image_plane_center.x << ' ' << params.image_plane_center.y << "\n";
   os << params.image_size.x << ' ' << params.image_size.y;
   return os;
 }
@@ -88,7 +88,7 @@ namespace {
     for(int i=0;i<v.rows();++i) {
       os << v(i) << ' ';
     }
-    os << endl;
+    os << "\n";
   }
   template <typename T>
   void read_vector(istream& is, Matrix<T, Dynamic, 1>& v) {
@@ -113,8 +113,8 @@ inline ostream& operator<<(ostream& os, const ModelParameters& params) {
   write_vector(os, params.Wid);
   write_vector(os, params.Wexp);
   write_vector(os, params.Wexp_FACS);
-  os << params.R(0) << ' ' << params.R(1) << ' ' << params.R(2) << endl;
-  os << params.T(0) << ' ' << params.T(1) << ' ' << params.T(2) << endl;
+  os << params.R(0) << ' ' << params.R(1) << ' ' << params.R(2) << "\n";
+  os << params.T(0) << ' ' << params.T(1) << ' ' << params.T(2) << "\n";
   write_vector(os, params.vindices);
   return os;
 }

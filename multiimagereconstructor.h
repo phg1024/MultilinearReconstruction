@@ -272,7 +272,7 @@ public:
   }
 
 protected:
-  void VisualizeReconstructionResult(const fs::path& folder, int i) {
+  void VisualizeReconstructionResult(const fs::path& folder, int i, bool scale_output=true) {
     // Visualize the reconstruction results
     #if 0
     MeshVisualizer w("reconstruction result", param_sets[i].mesh);
@@ -293,8 +293,15 @@ protected:
 
     recon_image.save( (folder / fs::path(image_path.stem().string() + ".png")).string().c_str() );
     #else
-    OffscreenMeshVisualizer visualizer(image_points_pairs[i].first.width(),
-                                       image_points_pairs[i].first.height());
+    int imgw = image_points_pairs[i].first.width();
+    int imgh = image_points_pairs[i].first.height();
+    if(scale_output) {
+      const int target_size = 640;
+      double scale = static_cast<double>(target_size) / imgw;
+      imgw *= scale;
+      imgh *= scale;
+    }
+    OffscreenMeshVisualizer visualizer(imgw, imgh);
 
     visualizer.SetMVPMode(OffscreenMeshVisualizer::CamPerspective);
     visualizer.SetRenderMode(OffscreenMeshVisualizer::MeshAndImage);
@@ -307,7 +314,7 @@ protected:
 
     QImage img = visualizer.Render(true);
     fs::path image_path = fs::path(image_filenames[i]);
-    img.save((folder / fs::path(image_path.stem().string() + ".png")).string().c_str());
+    img.save((folder / fs::path(image_path.stem().string() + ".jpg")).string().c_str());
     #endif
   }
 
@@ -474,7 +481,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
     OptimizationParameters opt_params = OptimizationParameters::Defaults();
     opt_params.w_prior_id = 10 * pow(iters_main_loop, 0.25);
     opt_params.w_prior_exp = 10;
-    opt_params.num_initializations = 5;
+    opt_params.num_initializations = 1;
     opt_params.perturbation_range = 0.01;
     opt_params.errorThreshold = 0.01;
 
@@ -598,7 +605,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
               visualizer.SetIndexEncoded(true);
               visualizer.SetEnableLighting(false);
               QImage img = visualizer.Render();
-              img.save("mesh.png");
+              //img.save("mesh.png");
 
               // find the visible triangles from the index map
               auto triangles_indices_pair = FindTrianglesIndices(img);
@@ -616,6 +623,8 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
                                                           param_sets[img_i].model.T[2]));
               glm::dmat4 Mview = Tmat * Rmat;
 
+              // FOR DEBUGGING
+              #if 0
               // for each visible triangle, compute the coordinates of its 3 corners
               QImage img_vertices = img;
               vector<vector<glm::dvec3>> triangles_projected;
@@ -635,6 +644,9 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
                 img_vertices.setPixel(v2_tri.x, img.height()-1-v2_tri.y, qRgb(255, 255, 255));
               }
               img_vertices.save("mesh_with_vertices.png");
+              #endif
+
+              #define DEBUG_RECON 1 // for visualizing large scale recon selection related data
 
               message("generating mean texture...");
               message("collecting texels...");
@@ -698,19 +710,28 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
                   }
                 }
                 message("done.");
-                #if 1
+
                 cv::resize(mean_texture_mat, mean_texture_mat, cv::Size(), 0.25, 0.25);
-                cv::Mat mean_texture_refined_mat = mean_texture_mat;
-                mean_texture_refined_mat = StatsUtils::MeanShiftSegmentation(mean_texture_refined_mat, 5.0, 30.0, 0.5);
-                mean_texture_refined_mat = 0.25 * mean_texture_mat + 0.75 * mean_texture_refined_mat;
-                mean_texture_refined_mat = StatsUtils::MeanShiftSegmentation(mean_texture_refined_mat, 10.0, 30.0, 0.5);
-                mean_texture_refined_mat = 0.25 * mean_texture_mat + 0.75 * mean_texture_refined_mat;
-                mean_texture_refined_mat = StatsUtils::MeanShiftSegmentation(mean_texture_refined_mat, 20.0, 30.0, 0.5);
-                mean_texture_refined_mat = 0.25 * mean_texture_mat + 0.75 * mean_texture_refined_mat;
-                cv::resize(mean_texture_refined_mat, mean_texture_refined_mat, cv::Size(), 4.0, 4.0);
-                #else
-                cv::Mat mean_texture_refined_mat = mean_texture_mat;
-                #endif
+                //cv::Mat mean_texture_refined_mat = mean_texture_mat.clone();
+                cv::Mat mean_texture_refined_mat;
+                {
+                  boost::timer::auto_cpu_timer timer_solve(
+                    "[Joint optimization] Mean texture generation = %w seconds.\n");
+                  #if 1
+                  cv::GaussianBlur(mean_texture_mat, mean_texture_refined_mat, cv::Size(5, 5), 3.0);
+                  mean_texture_refined_mat = StatsUtils::MeanShiftSegmentation(mean_texture_refined_mat, 5.0, 30.0, 0.5);
+                  mean_texture_refined_mat = 0.25 * mean_texture_mat + 0.75 * mean_texture_refined_mat;
+                  /*
+                  mean_texture_refined_mat = StatsUtils::MeanShiftSegmentation(mean_texture_refined_mat, 10.0, 30.0, 0.5);
+                  mean_texture_refined_mat = 0.25 * mean_texture_mat + 0.75 * mean_texture_refined_mat;
+                  mean_texture_refined_mat = StatsUtils::MeanShiftSegmentation(mean_texture_refined_mat, 20.0, 30.0, 0.5);
+                  mean_texture_refined_mat = 0.25 * mean_texture_mat + 0.75 * mean_texture_refined_mat;
+                  */
+                  cv::resize(mean_texture_refined_mat, mean_texture_refined_mat, cv::Size(), 4.0, 4.0);
+                  #else
+                  cv::Mat mean_texture_refined_mat = mean_texture_mat;
+                  #endif
+                }
 
                 QImage mean_texture_image_refined(tex_size, tex_size, QImage::Format_ARGB32);
                 for(int ti=0;ti<tex_size;++ti) {
@@ -720,8 +741,10 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
                   }
                 }
 
+                #if DEBUG_RECON
                 mean_texture_image.save( (step_result_path / fs::path("mean_texture.png")).string().c_str() );
                 mean_texture_image_refined.save( (step_result_path / fs::path("mean_texture_refined.png")).string().c_str() );
+                #endif
                 mean_texture_image = mean_texture_image_refined;
               }
             } catch(exception& e) {
@@ -735,6 +758,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
 
         // Rendering the albedo to each image
         vector<QImage> albedo_images(num_images);
+        //#pragma omp parallel for
         for(int i=0;i<num_images;++i) {
           // for each image bundle, render the mesh to FBO with culling to get the visible triangles
           OffscreenMeshVisualizer visualizer(image_points_pairs[i].first.width(),
@@ -770,20 +794,25 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
 
           albedo_images[i] = TransferColor(albedo_images[i], image_points_pairs[i].first,
                                            valid_pixels_map_i, valid_pixels_map_i);
-
+          #if DEBUG_RECON
           albedo_images[i].save( (step_result_path / fs::path("albedo_" + std::to_string(i) + ".png")).string().c_str() );
+          #endif
 
           // compute texture difference
 
           double diff_i = 0;
           int valid_count = 0;
+          #if DEBUG_RECON
           QImage depth_image = albedo_images[i];
           depth_image.fill(0);
+          #endif
           for(int y=0;y<img_h;++y) {
             for(int x=0;x<img_w;++x) {
               float dval = depth_i[(img_h-1-y)*img_w+x];
               if(dval<1) {
+                #if DEBUG_RECON
                 depth_image.setPixel(x, y, qRgb(dval*255, 0, (1-dval)*255));
+                #endif
                 valid_count++;
                 QRgb pix1 = albedo_images[i].pixel(x, y);
                 QRgb pix2 = image_points_pairs[i].first.pixel(x, y);
@@ -797,7 +826,9 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
             }
           }
           d_texture[i] = make_pair(i, diff_i/valid_count);
+          #if DEBUG_RECON
           depth_image.save( (step_result_path / fs::path("depth_" + std::to_string(i) + ".png")).string().c_str() );
+          #endif
         }
         auto subset_texture = take_first_k(d_texture, k);
         for(auto sx : subset_texture) cout << sx << ' '; cout << endl;
@@ -957,7 +988,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
           options.line_search_direction_type = ceres::LBFGS;
           DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
           ceres::Solver::Summary summary;
-          Solve(options, &problem, &summary);
+          ceres::Solve(options, &problem, &summary);
           DEBUG_OUTPUT(summary.FullReport())
         }
 

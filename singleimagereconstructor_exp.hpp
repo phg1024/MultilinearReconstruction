@@ -154,7 +154,10 @@ public:
     fout.close();
   }
 
-  void LoadBlendshapes(const string& blendshapes_path);
+  void LoadBlendshapes(const string& blendshapes_path, bool alsoApplyWeights=true);
+  void RefereshWeights() {
+    ApplyWeights();
+  }
 
   void ToggleDisplayStepResult() {
     display_step_result = !display_step_result;
@@ -278,7 +281,10 @@ void SingleImageReconstructor<Constraint>::UpdateModels() {
 }
 
 template <typename Constraint>
-void SingleImageReconstructor<Constraint>::LoadBlendshapes(const string& blendshapes_path) {
+void SingleImageReconstructor<Constraint>::LoadBlendshapes(
+  const string& blendshapes_path,
+  bool alsoApplyWeights) {
+
   const int num_blendshapes = 46;
   blendshapes.resize(num_blendshapes + 1);
   for(int i=0;i<=num_blendshapes;++i) {
@@ -286,7 +292,7 @@ void SingleImageReconstructor<Constraint>::LoadBlendshapes(const string& blendsh
     blendshapes[i].ComputeNormals();
   }
 
-  ApplyWeights();
+  if(alsoApplyWeights) ApplyWeights();
 }
 
 template<typename Constraint>
@@ -626,7 +632,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForPosition() {
       options.max_num_iterations = 100;
       DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
       ceres::Solver::Summary summary;
-      Solve(options, &problem, &summary);
+      ceres::Solve(options, &problem, &summary);
       DEBUG_OUTPUT(summary.BriefReport());
       //cout << params[0] << ' ' << params[1] << ' ' << params[2] << endl;
       if(i == max_tries - 1) break;
@@ -862,7 +868,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose(int iteration) {
     DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
     ceres::Solver::Summary summary;
 
-    Solve(options, &problem, &summary);
+    ceres::Solve(options, &problem, &summary);
     DEBUG_OUTPUT(summary.BriefReport())
   }
 
@@ -996,12 +1002,12 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression(
     options.line_search_direction_type = ceres::STEEPEST_DESCENT;
     DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
     ceres::Solver::Summary summary;
-    Solve(options, &problem, &summary);
+    ceres::Solve(options, &problem, &summary);
     DEBUG_OUTPUT(summary.BriefReport())
 
     options.max_num_iterations = iteration * 5;
     options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
-    Solve(options, &problem, &summary);
+    ceres::Solve(options, &problem, &summary);
     DEBUG_OUTPUT(summary.BriefReport())
   }
 
@@ -1122,7 +1128,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
 
     DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
     ceres::Solver::Summary summary;
-    Solve(options, &problem, &summary);
+    ceres::Solve(options, &problem, &summary);
     DEBUG_OUTPUT(summary.BriefReport())
 
     //if (need_precise_result)
@@ -1130,7 +1136,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
       options.max_num_iterations = 2;
       options.minimizer_type = ceres::LINE_SEARCH;
       options.line_search_direction_type = ceres::LBFGS;
-      Solve(options, &problem, &summary);
+      ceres::Solve(options, &problem, &summary);
       DEBUG_OUTPUT(summary.BriefReport())
     }
   }
@@ -1249,7 +1255,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
 
     DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
     ceres::Solver::Summary summary;
-    Solve(options, &problem, &summary);
+    ceres::Solve(options, &problem, &summary);
     DEBUG_OUTPUT(summary.FullReport())
 
     // Update the model parameters

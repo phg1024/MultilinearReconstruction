@@ -39,11 +39,12 @@ endif()
 
 
 # Eigen
+find_package(Eigen REQUIRED)
 include_directories(/usr/include/eigen3)
 
 # MKL
 include_directories(${MKL_INCLUDE_DIRS})
-set(MKLROOT "/home/phg/SDKs/intel/composer_xe_2015.2.164/mkl")
+set(MKLROOT "/opt/intel/mkl")
 set(MKLLIBS "-Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_lp64.a ${MKLROOT}/lib/intel64/libmkl_core.a ${MKLROOT}/lib/intel64/libmkl_intel_thread.a -Wl,--end-group -liomp5 -ldl -lpthread -lm")
 
 # PhGLib

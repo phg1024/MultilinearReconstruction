@@ -47,7 +47,7 @@ void MultilinearModel::UpdateTM0(const Tensor1 &w)
 
 void MultilinearModel::UpdateTM1(const Tensor1 &w)
 {
-#if 1
+#if 0
   tm1 = core.ModeProduct<1>(w);
 #else
   // tu1

@@ -137,8 +137,8 @@ public:
 
   void SaveReconstructionResults(const string& filename) const {
     ofstream fout(filename);
-    fout << params_cam << endl;
-    fout << params_model << endl;
+    fout << params_cam << "\n";
+    fout << params_model << "\n";
     fout << recon_stats << endl;
     fout.close();
   }
@@ -325,7 +325,9 @@ bool SingleImageReconstructor<Constraint>::Reconstruct(OptimizationParameters op
           if((opt_mode & (Identity | Expression))){
             boost::timer::auto_cpu_timer timer(
               "[Main loop] Multilinear model weights update time = %w seconds.\n");
-            model.ApplyWeights(params_model.Wid, params_model.Wexp);
+            //model.ApplyWeights(params_model.Wid, params_model.Wexp);
+            model.UpdateTM0(params_model.Wid);
+            model.UpdateTMWithTM1(params_model.Wid);
           }
           mesh.UpdateVertices(model.GetTM());
           mesh.ComputeNormals();
@@ -349,7 +351,9 @@ bool SingleImageReconstructor<Constraint>::Reconstruct(OptimizationParameters op
           if(opt_mode & Expression){
             boost::timer::auto_cpu_timer timer(
               "[Main loop] Multilinear model weights update time = %w seconds.\n");
-            model.ApplyWeights(params_model.Wid, params_model.Wexp);
+            //model.ApplyWeights(params_model.Wid, params_model.Wexp);
+            model.UpdateTM1(params_model.Wexp);
+            model.UpdateTMWithTM0(params_model.Wexp);
           }
           mesh.UpdateVertices(model.GetTM());
           mesh.ComputeNormals();
@@ -408,7 +412,7 @@ bool SingleImageReconstructor<Constraint>::Reconstruct(OptimizationParameters op
       cout << "Reconstruction done." << endl;
       model.ApplyWeights(params_model.Wid, params_model.Wexp);
 
-      SaveReconstructionResults(image_filename + "_run_"+ to_string(run_i) + ".res");
+      //SaveReconstructionResults(image_filename + "_run_"+ to_string(run_i) + ".res");
 
       wid_history.row(run_i) = params_model.Wid;
     }
@@ -556,7 +560,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForPosition() {
       options.max_num_iterations = 100;
       DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
       ceres::Solver::Summary summary;
-      Solve(options, &problem, &summary);
+      ceres::Solve(options, &problem, &summary);
       DEBUG_OUTPUT(summary.BriefReport());
       //cout << params[0] << ' ' << params[1] << ' ' << params[2] << endl;
       if(i == max_tries - 1) break;
@@ -791,7 +795,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose(int iteration) {
     DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
     ceres::Solver::Summary summary;
 
-    Solve(options, &problem, &summary);
+    ceres::Solve(options, &problem, &summary);
     DEBUG_OUTPUT(summary.BriefReport())
   }
 
@@ -920,12 +924,12 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression(
     options.line_search_direction_type = ceres::STEEPEST_DESCENT;
     DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
     ceres::Solver::Summary summary;
-    Solve(options, &problem, &summary);
+    ceres::Solve(options, &problem, &summary);
     DEBUG_OUTPUT(summary.BriefReport())
 
     options.max_num_iterations = iteration * 5;
     options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
-    Solve(options, &problem, &summary);
+    ceres::Solve(options, &problem, &summary);
     DEBUG_OUTPUT(summary.BriefReport())
   }
 
@@ -1037,7 +1041,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
 
     DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
     ceres::Solver::Summary summary;
-    Solve(options, &problem, &summary);
+    ceres::Solve(options, &problem, &summary);
     DEBUG_OUTPUT(summary.BriefReport())
 
     //if (need_precise_result)
@@ -1045,7 +1049,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
       options.max_num_iterations = 2;
       options.minimizer_type = ceres::LINE_SEARCH;
       options.line_search_direction_type = ceres::LBFGS;
-      Solve(options, &problem, &summary);
+      ceres::Solve(options, &problem, &summary);
       DEBUG_OUTPUT(summary.BriefReport())
     }
   }
@@ -1164,7 +1168,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForIdentity(int iteration) {
 
     DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
     ceres::Solver::Summary summary;
-    Solve(options, &problem, &summary);
+    ceres::Solve(options, &problem, &summary);
     DEBUG_OUTPUT(summary.FullReport())
 
     // Update the model parameters
