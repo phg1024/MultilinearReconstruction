@@ -44,18 +44,27 @@ endif()
 find_package(Eigen)
 include_directories(${EIGEN_INCLUDE_DIR})
 
+# SuiteSparse
+set(SUITESPARSE_INCLUDE_DIR "/usr/include/suitesparse")
+include_directories(${SUITESPARSE_INCLUDE_DIR})
+
 # MKL
 set(MKL_INCLUDE_DIRS "/opt/intel/mkl/include")
 message([] ${MKL_INCLUDE_DIRS} )
 include_directories(${MKL_INCLUDE_DIRS})
 set(MKLROOT "/opt/intel/mkl")
+<<<<<<< 2510ae5aef2f14a684ec5669f8764a5cf705ecd5
 set(MKLLIBS_DIRS "${MKLROOT}/lib/intel64/")
+=======
+set(MKLLIBS_DIRS "${MKLROOT}/lib/intel64/" "/opt/intel/lib/intel64_lin")
+>>>>>>> admin
 link_directories(${MKLLIBS_DIRS})
 set(MKLLIBS "-Wl,--start-group -lmkl_intel_lp64 -lmkl_core -lmkl_intel_thread -Wl,--end-group -liomp5 -ldl -lpthread -lm")
 
 # PhGLib
 include_directories("/home/phg/SDKs/PhGLib/include")
-set(PhGLib "-L/home/phg/SDKs/PhGLib/lib -lPhGLib")
+link_directories("/home/phg/SDKs/PhGLib/lib")
+set(PhGLib "-lPhGLib")
 
 # Qt5
 find_package(Qt5Core)
