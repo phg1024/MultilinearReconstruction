@@ -172,6 +172,14 @@ void BasicMesh::BuildHalfEdgeMesh() {
 
 void BasicMesh::Subdivide() {
   // Loop subdivision
+  // NOTE The indices of the original set of vertices do not change after
+  // subdivision. The new vertices are simply added to the set of vertices.
+  // However, the faces change their indices after subdivision. See how new
+  // faces are added to the face set for details.
+  // In short, the new mesh is created as follows:
+  //   [old vertices]
+  //   [new vertices]
+  //   [faces]
 
   // For each edge, compute its center point
   struct edge_t {
