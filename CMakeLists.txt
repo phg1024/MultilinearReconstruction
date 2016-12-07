@@ -53,11 +53,7 @@ set(MKL_INCLUDE_DIRS "/opt/intel/mkl/include")
 message([] ${MKL_INCLUDE_DIRS} )
 include_directories(${MKL_INCLUDE_DIRS})
 set(MKLROOT "/opt/intel/mkl")
-<<<<<<< 2510ae5aef2f14a684ec5669f8764a5cf705ecd5
-set(MKLLIBS_DIRS "${MKLROOT}/lib/intel64/")
-=======
 set(MKLLIBS_DIRS "${MKLROOT}/lib/intel64/" "/opt/intel/lib/intel64_lin")
->>>>>>> admin
 link_directories(${MKLLIBS_DIRS})
 set(MKLLIBS "-Wl,--start-group -lmkl_intel_lp64 -lmkl_core -lmkl_intel_thread -Wl,--end-group -liomp5 -ldl -lpthread -lm")
 
