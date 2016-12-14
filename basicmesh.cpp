@@ -338,9 +338,6 @@ void BasicMesh::Subdivide() {
     new_texcoords.row(new_texcoords_idx) = p.second;
     ++new_texcoords_idx;
   }
-  cout << midpoints.size() << endl;
-  cout << midpoints_texcoords.size() << endl;
-  cout << new_texcoords_idx << endl;
 
   MatrixX3i new_faces(num_faces*4, 3);
   MatrixX3i new_face_tex_index(num_faces*4, 3);
