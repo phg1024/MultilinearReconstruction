@@ -1054,20 +1054,20 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
       for(int j=0;j<params.size();++j) {
         points_i.row(j) = blendshapes[j].vertex(params_recon.cons[i].vidx);
       }
-      cout << points_i.rows() << " x " << points_i.cols() << endl;
 
       //model_i.ApplyWeights(params_model.Wid, params_model.Wexp);
-#if USE_ANALYTIC_COST_FUNCTIONS
+#if 0 //USE_ANALYTIC_COST_FUNCTIONS
       ceres::CostFunction *cost_function = new ExpressionCostFunction_FACS_analytic(
         points_i, params_recon.cons[i], params.size(), Mview, Rmat, prior.Uexp,
         params_cam);
 #else
       ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction_FACS> *cost_function =
         new ceres::DynamicNumericDiffCostFunction<ExpressionCostFunction_FACS>(
-          new ExpressionCostFunction_FACS(model_i,
+          new ExpressionCostFunction_FACS(points_i,
                                           params_recon.cons[i],
                                           params.size(),
                                           Mview,
+                                          Rmat,
                                           prior.Uexp,
                                           params_cam));
       // Optimize the last 46 weights only
@@ -1127,9 +1127,11 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
 #endif
 
     DEBUG_EXPR(options.minimizer_progress_to_stdout = true;)
+    options.minimizer_progress_to_stdout = true;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
     DEBUG_OUTPUT(summary.BriefReport())
+    summary.BriefReport();
 
     //if (need_precise_result)
     {

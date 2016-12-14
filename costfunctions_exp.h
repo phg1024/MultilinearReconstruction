@@ -671,14 +671,15 @@ struct ExpressionCostFunction_analytic : public ceres::CostFunction {
 };
 
 struct ExpressionCostFunction_FACS {
-  ExpressionCostFunction_FACS(const MultilinearModel &model,
+  ExpressionCostFunction_FACS(const MatrixX3d &points_in,
                               const Constraint2D &constraint,
                               int params_length,
                               const glm::dmat4 &Mview,
+                              const glm::dmat4 &Rmat,
                               const MatrixXd &Uexp,
                               const CameraParameters &cam_params)
-    : model(model), constraint(constraint), params_length(params_length),
-      Mview(Mview), Uexp(Uexp), cam_params(cam_params) { }
+    : points_in(points_in), constraint(constraint), params_length(params_length),
+      Mview(Mview), Rmat(Rmat), Uexp(Uexp), cam_params(cam_params) { }
 
   bool operator()(const double *const *wexp, double *residual) const {
 #if 0
@@ -691,10 +692,13 @@ struct ExpressionCostFunction_FACS {
     VectorXd weights = (wexp_vec.transpose() * Uexp).eval();
 
     // Apply the weight vector to the model
-    model.UpdateTMWithTM0(weights);
+    // Apply the weight vector to the model
+    Vector3d tm(0, 0, 0);
+    for(int j=0;j<params_length;++j) {
+      tm += points_in.row(j) * wexp_vec[j];
+    }
 
     // Project the point to image plane
-    auto tm = model.GetTM();
     glm::dvec3 p(tm[0], tm[1], tm[2]);
     glm::dvec3 q = ProjectPoint(p, Mview, cam_params);
     // Compute residual
@@ -703,10 +707,10 @@ struct ExpressionCostFunction_FACS {
     return true;
   }
 
-  mutable MultilinearModel model;
+  MatrixX3d points_in;
   Constraint2D constraint;
   int params_length;
-  glm::dmat4 Mview;
+  glm::dmat4 Mview, Rmat;
   const MatrixXd &Uexp;
   CameraParameters cam_params;
 };
@@ -725,7 +729,7 @@ struct ExpressionCostFunction_FACS_analytic : public ceres::CostFunction {
     mutable_parameter_block_sizes()->push_back(params_length - 1);
     set_num_residuals(1);
 
-    cout << "points_in: " << points_in.rows() << " x " << points_in.cols() << endl;
+    //cout << "points_in: " << points_in.rows() << " x " << points_in.cols() << endl;
   }
 
   // TODO update the reference function
@@ -776,7 +780,7 @@ struct ExpressionCostFunction_FACS_analytic : public ceres::CostFunction {
 
   bool Evaluate(const double *const *wexp, double *residuals,
                 double **jacobians) const {
-    cout << "before: " << points_in.rows() << " x " << points_in.cols() << endl;
+    //cout << "before: " << points_in.rows() << " x " << points_in.cols() << endl;
 #if 0
     VectorXd wexp_vec = Map<const VectorXd>(wexp[0], params_length).eval();
 #else
@@ -789,14 +793,14 @@ struct ExpressionCostFunction_FACS_analytic : public ceres::CostFunction {
 
     //cout << "wexp_vec: " << wexp_vec.transpose().eval() << endl;
     //cout << "points_in: " << points_in.eval() << endl;
-    cout << points_in.rows() << " x " << points_in.cols() << endl;
+    //cout << points_in.rows() << " x " << points_in.cols() << endl;
 
     // Apply the weight vector to the model
     Vector3d tm(0, 0, 0);
     for(int j=0;j<params_length;++j) {
       tm += points_in.row(j) * wexp_vec[j];
     }
-    cout << tm << endl;
+    //cout << tm << endl;
 
     // Project the point to image plane
     glm::dvec3 p(tm[0], tm[1], tm[2]);

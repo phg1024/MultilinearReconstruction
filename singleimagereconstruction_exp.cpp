@@ -136,6 +136,11 @@ int main(int argc, char *argv[]) {
 
   // Load the initial recon results and blendshapes
   auto recon_results = LoadReconstructionResult(init_recon_filename);
+
+  // Reset the expression weights
+  recon_results.params_model.Wexp_FACS(0) = 1.0;
+  for(int i=1;i<47;++i) recon_results.params_model.Wexp_FACS(i) = 0.0;
+  
   recon.SetInitialParameters(recon_results.params_model, recon_results.params_cam);
   recon.LoadBlendshapes(blendshapes_path);
 

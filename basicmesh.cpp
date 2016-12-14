@@ -185,12 +185,25 @@ void BasicMesh::Subdivide() {
   struct edge_t {
     edge_t() {}
     edge_t(int s, int t) : s(s), t(t) {}
+    edge_t(const edge_t& e) : s(e.s), t(e.t) {}
     bool operator<(const edge_t& other) const {
       if(s < other.s) return true;
       else if( s > other.s ) return false;
       else return t < other.t;
     }
     int s, t;
+  };
+
+  struct face_edge_t {
+    face_edge_t() {}
+    face_edge_t(int fidx, edge_t e) : fidx(fidx), e(e) {}
+    bool operator<(const face_edge_t& other) const {
+      if(fidx < other.fidx) return true;
+      else if(fidx > other.fidx) return false;
+      return e < other.e;
+    }
+    int fidx;
+    edge_t e;
   };
 
   const int num_faces = NumFaces();
@@ -213,7 +226,8 @@ void BasicMesh::Subdivide() {
 
     if(hemesh.is_boundary(*e)) {
       // simply compute the mid point
-      midpoints.insert(make_pair(edge_t(v0idx, v1idx), 0.5 * (v0 + v1)));
+      midpoints.insert(make_pair(edge_t(v0idx, v1idx),
+                                 0.5 * (v0 + v1)));
     } else {
       // use [1/8, 3/8, 3/8, 1/8] weights
       auto v2h = hemesh.to_vertex_handle(hemesh.next_halfedge_handle(heh));
@@ -281,25 +295,92 @@ void BasicMesh::Subdivide() {
     ++new_idx;
   }
 
+  // Process the texture coordinates
+  map<face_edge_t, Vector2d> midpoints_texcoords;
+
+  for(int fidx=0;fidx<NumFaces();++fidx){
+    int j[] = {1, 2, 0};
+    for(int i=0;i<3;++i) {
+      int v0idx = faces(fidx, i);
+      int v1idx = faces(fidx, j[i]);
+
+      // if v0 = f[index_of(v0)], the tv0 = tf[index_of(v0)]
+      int tv0idx = face_tex_index(fidx, i);
+      // if v1 = f[index_of(v1)], the tv1 = tf[index_of(v1)]
+      int tv1idx = face_tex_index(fidx, j[i]);
+
+      auto t0 = texcoords.row(tv0idx);
+      auto t1 = texcoords.row(tv1idx);
+
+      // the texture coordinates is always the mid point
+      midpoints_texcoords.insert(make_pair(face_edge_t(fidx, edge_t(v0idx, v1idx)),
+                                           0.5 * (t0 + t1)));
+    }
+  }
+
+  const int num_texcoords = texcoords.rows() + midpoints_texcoords.size();
+  MatrixX2d new_texcoords(num_texcoords, 2);
+
+  // Just copy the existing texture coordinates
+  new_texcoords.topRows(texcoords.rows()) = texcoords;
+
+  // Tex-coords for the mid points
+  map<face_edge_t, int> midpoints_texcoords_indices;
+  int new_texcoords_idx = texcoords.rows();
+  for(auto p : midpoints_texcoords) {
+    //cout << p.first.fidx << ": " << p.first.e.s << "->" << p.first.e.t << endl;
+    //getchar();
+    midpoints_texcoords_indices.insert(make_pair(p.first,
+                                                 new_texcoords_idx));
+    midpoints_texcoords_indices.insert(make_pair(face_edge_t(p.first.fidx, edge_t(p.first.e.t, p.first.e.s)),
+                                                 new_texcoords_idx));
+
+    new_texcoords.row(new_texcoords_idx) = p.second;
+    ++new_texcoords_idx;
+  }
+  cout << midpoints.size() << endl;
+  cout << midpoints_texcoords.size() << endl;
+  cout << new_texcoords_idx << endl;
+
   MatrixX3i new_faces(num_faces*4, 3);
+  MatrixX3i new_face_tex_index(num_faces*4, 3);
   for(int i=0;i<num_faces;++i) {
+    // vertex indices of the original triangle
     auto vidx0 = faces(i, 0);
     auto vidx1 = faces(i, 1);
     auto vidx2 = faces(i, 2);
 
+    // texture coordinates indices of the original triangle
+    auto tvidx0 = face_tex_index(i, 0);
+    auto tvidx1 = face_tex_index(i, 1);
+    auto tvidx2 = face_tex_index(i, 2);
+
+    // indices of the mid points
     int nvidx01 = midpoints_indices[edge_t(vidx0, vidx1)];
     int nvidx12 = midpoints_indices[edge_t(vidx1, vidx2)];
     int nvidx20 = midpoints_indices[edge_t(vidx2, vidx0)];
+
+    // indices of the texture coordinates of the mid points
+    int tnvidx01 = midpoints_texcoords_indices.at(face_edge_t(i, edge_t(vidx0, vidx1)));
+    int tnvidx12 = midpoints_texcoords_indices.at(face_edge_t(i, edge_t(vidx1, vidx2)));
+    int tnvidx20 = midpoints_texcoords_indices.at(face_edge_t(i, edge_t(vidx2, vidx0)));
 
     // add the 4 new faces
     new_faces.row(i*4+0) = Vector3i(vidx0, nvidx01, nvidx20);
     new_faces.row(i*4+1) = Vector3i(nvidx20, nvidx01, nvidx12);
     new_faces.row(i*4+2) = Vector3i(nvidx20, nvidx12, vidx2);
     new_faces.row(i*4+3) = Vector3i(nvidx01, vidx1, nvidx12);
+
+    new_face_tex_index.row(i*4+0) = Vector3i(tvidx0, tnvidx01, tnvidx20);
+    new_face_tex_index.row(i*4+1) = Vector3i(tnvidx20, tnvidx01, tnvidx12);
+    new_face_tex_index.row(i*4+2) = Vector3i(tnvidx20, tnvidx12, tvidx2);
+    new_face_tex_index.row(i*4+3) = Vector3i(tnvidx01, tvidx1, tnvidx12);
   }
 
   verts = new_verts;
   faces = new_faces;
+  texcoords = new_texcoords;
+  face_tex_index = new_face_tex_index;
 
   // Update the normals after subdivision
   ComputeNormals();
@@ -315,12 +396,19 @@ void BasicMesh::Write(const string &filename) const {
     content += to_string(verts(i, 2)) + "\n"; ++offset;
   }
 
-  // write faces
+  // write texture coordinates
+  for (int i = 0; i < texcoords.rows(); ++i) {
+    content += "vt ";
+    content += to_string(texcoords(i, 0)) + " ";
+    content += to_string(texcoords(i, 1)) + "\n";
+  }
+
+  // write faces together with texture coordinates indices
   for (int i = 0, offset = 0; i < NumFaces(); ++i) {
     content += "f ";
-    content += to_string(faces(i, 0) + 1) + " "; ++offset;
-    content += to_string(faces(i, 1) + 1) + " "; ++offset;
-    content += to_string(faces(i, 2) + 1) + "\n"; ++offset;
+    content += to_string(faces(i, 0) + 1) + "/" + to_string(face_tex_index(i, 0) + 1) + "/0" + " "; ++offset;
+    content += to_string(faces(i, 1) + 1) + "/" + to_string(face_tex_index(i, 1) + 1) + "/0" + " "; ++offset;
+    content += to_string(faces(i, 2) + 1) + "/" + to_string(face_tex_index(i, 2) + 1) + "/0" + "\n"; ++offset;
   }
 
   ofstream fout(filename);
