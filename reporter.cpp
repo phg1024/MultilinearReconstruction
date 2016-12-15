@@ -14,7 +14,7 @@ void Reporter::PrintReport(ostream& os) const {
   if(timers.empty()) return;
 
   PrintBanner(os);
-  os << name << "\n";
+  os << name << ": " << GetElapsed(self_timer) << " seconds.\n";
   PrintBanner(os);
   using record_t = pair<string, double>;
   vector<record_t> records(timers.begin(), timers.end());
@@ -23,7 +23,7 @@ void Reporter::PrintReport(ostream& os) const {
               return a.second > b.second;
             });
   for(auto p : records) {
-    os << p.first << ": " << p.second << " seconds." << "\n";
+    os << p.first << ": " << p.second << " seconds.\n";
   }
   PrintBanner(os);
   os << endl;
@@ -41,11 +41,14 @@ void Reporter::Toc(const string& e, ostream& os) {
   if(clocks.count(event)) {
     auto& timer = clocks[event];
     timer.stop();
-    cpu_times const elapsed_times(timer.elapsed());
-    // only consider wall time
-    nanosecond_type const elapsed(elapsed_times.wall);
-    AddToEntry(event, elapsed / static_cast<double>(one_second));
+    AddToEntry(event, GetElapsed(timer));
     os << event << ": " << timer.format() << endl;
     clocks.erase(event);
   }
+}
+
+double Reporter::GetElapsed(const cpu_timer& timer) const {
+  cpu_times const elapsed_times(timer.elapsed());
+  nanosecond_type const elapsed(elapsed_times.wall);
+  return elapsed / static_cast<double>(one_second);
 }

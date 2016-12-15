@@ -13,6 +13,7 @@ public:
   Reporter() {}
   Reporter(const string& name) : name(name) {}
   ~Reporter() {
+    self_timer.stop();
     PrintReport();
   }
 
@@ -40,9 +41,13 @@ private:
   }
 
 private:
+  double GetElapsed(const cpu_timer& t) const;
+
+private:
   static const int64_t one_second = 1000000000LL;
   string name;
   string last_event;
+  cpu_timer self_timer;
   map<string, double> timers;
-  map<string, boost::timer::cpu_timer> clocks;
+  map<string, cpu_timer> clocks;
 };
