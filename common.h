@@ -1,6 +1,7 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <fstream>
@@ -12,6 +13,8 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <thread>
+#include <map>
+#include <set>
 
 using namespace std;
 

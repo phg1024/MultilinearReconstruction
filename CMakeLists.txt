@@ -132,6 +132,9 @@ target_link_libraries(tensor ${MKLLIBS})
 add_library(ioutilities ioutilities.cpp)
 target_link_libraries(ioutilities Qt5::Core Qt5::Widgets)
 
+add_library(reporter reporter.cpp)
+target_link_libraries(reporter ${Boost_LIBRARIES})
+
 #configure_file(vert.glsl vert.glsl COPYONLY)
 configure_file(frag.glsl frag.glsl COPYONLY)
 
