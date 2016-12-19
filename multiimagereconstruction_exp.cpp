@@ -147,8 +147,11 @@ int main(int argc, char *argv[]) {
       (fs::path(init_recon_path) / fs::path(p.first + ".res")).string() );
 
     // Reset the expression weights
-    recon_results.params_model.Wexp_FACS(0) = 1.0;
-    for(int i=1;i<47;++i) recon_results.params_model.Wexp_FACS(i) = 0.0;
+    const bool reset_exp_weights = true;
+    if(reset_exp_weights) {
+      recon_results.params_model.Wexp_FACS(0) = 1.0;
+      for(int i=1;i<47;++i) recon_results.params_model.Wexp_FACS(i) = 0.0;
+    }
 
     recon.SetInitialParameters(recon_results.params_model, recon_results.params_cam);
     recon.RefereshWeights();
