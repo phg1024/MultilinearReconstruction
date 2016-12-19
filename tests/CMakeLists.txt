@@ -51,6 +51,12 @@ set(MKLLIBS "-Wl,--start-group ${MKLROOT}/lib/intel64/libmkl_intel_lp64.a ${MKLR
 include_directories("/home/phg/SDKs/PhGLib/include")
 set(PhGLib "-L/home/phg/SDKs/PhGLib/lib -lPhGLib")
 
+# Ceres solver
+find_package(Ceres REQUIRED)
+include_directories(${CERES_INCLUDE_DIRS})
+link_libraries(${CERES_LIBRARIES})
+
+
 add_executable(test_mesh_visualizer test_mesh_visualizer.cpp)
 target_link_libraries(test_mesh_visualizer basicmesh ioutilities multilinearmodel meshvisualizer
         Qt5::Core
@@ -81,5 +87,8 @@ target_link_libraries(test_tensors tensor)
 
 add_executable(test_subdivision test_subdivision.cpp)
 target_link_libraries(test_subdivision basicmesh)
+
+add_executable(test_ceres test_ceres.cpp)
+#target_link_libraries(test_ceres)
 
 link_directories(..)
