@@ -470,7 +470,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
   vector<MatrixXd> identity_weights_history;
   vector<VectorXd> identity_weights_centroid_history;
 
-  vector<int> consistent_set(num_images);
+  vector<int> consistent_set(num_images), final_chosen_set;
   for(int i=0;i<num_images;++i) consistent_set[i] = i;
 
   while(iters_main_loop++ < 3){
@@ -511,7 +511,8 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
 
       if (true) {
         VisualizeReconstructionResult(step_single_recon_result_path, i);
-        single_recon.SaveReconstructionResults( (step_single_recon_result_path / fs::path(to_string(i) + ".res")).string());
+        fs::path image_path = fs::path(image_filenames[i]);
+        single_recon.SaveReconstructionResults( (step_single_recon_result_path / fs::path(image_path.stem().string() + ".res")).string());
       }
     }
 
@@ -580,7 +581,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
           n_expression[i] = make_pair(i, (param_sets[i].model.Wexp_FACS).norm());
         }
 
-        auto subset_expression = take_first_k(n_expression, 0.8 * num_images);
+        auto subset_expression = take_first_k(n_expression, (0.6 + iters_main_loop * 0.1) * num_images);
         for(auto sx : subset_expression) cout << sx << ' '; cout << endl;
 
         #if 1
@@ -840,8 +841,17 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
 
         for(int i=0;i<num_images;++i) {
           if(subset_identity.count(i)) {
+
+#if 1
+            // Use expression as a condition
             bool exclude = (subset_expression.count(i) == 0) || (subset_error.count(i) == 0) ||
                            (subset_texture.count(i) == 0);
+
+#else
+            // Use only recon error and texture metric
+            bool exclude = (subset_error.count(i) == 0) || (subset_texture.count(i) == 0);
+#endif
+
             if(exclude) final_set.erase(i);
           }
         }
@@ -883,8 +893,12 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
         iters_joint_optimization<num_iters_joint_optimization;
         ++iters_joint_optimization){
       // [Joint reconstruction] step 1: estimate pose and expression weights individually
+
+      // In the final iteration, no need to refine the identity weights anymore
       if((iters_joint_optimization == num_iters_joint_optimization - 1) && (iters_main_loop == max_iters_main_loop)) {
-        // In the final iteration, no need to refine the identity weights anymore
+        // Store the final selection
+        final_chosen_set = consistent_set;
+
         consistent_set.resize(num_images);
         for(int i=0;i<num_images;++i) consistent_set[i] = i;
       }
@@ -1028,6 +1042,16 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
       fout << identity_weights_centroid_history[i];
       fout.close();
     }
+  }
+
+  // Output the chosen subset
+  {
+    ofstream fout( (result_path / fs::path("selection.txt")).string() );
+    for(int i=0;i<final_chosen_set.size();++i) {
+      // The row indices in the settings file!
+      fout << final_chosen_set[i] << endl;
+    }
+    fout.close();
   }
 
   // Visualize the final reconstruction results

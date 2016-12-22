@@ -9,34 +9,55 @@
 
 #include "boost/filesystem/operations.hpp"
 #include "boost/filesystem/path.hpp"
-
-namespace fs = boost::filesystem;
-
+#include "boost/program_options.hpp"
 
 int main(int argc, char *argv[]) {
   QApplication a(argc, argv);
   glutInit(&argc, argv);
   google::InitGoogleLogging(argv[0]);
 
-  if( argc < 2 ) {
-    cout << "Usage: ./MultiImageReconstruction setting_file" << endl;
-    return -1;
+  namespace fs = boost::filesystem;
+  namespace po = boost::program_options;
+
+  po::options_description desc("Options");
+  desc.add_options()
+  ("settings_file", po::value<string>()->required(), "Input settings file")
+  ("model_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/blendshape_core.tensor"), "Multilinear model file")
+  ("id_prior_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/blendshape_u_0_aug.tensor"), "Identity prior file")
+  ("exp_prior_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/blendshape_u_1_aug.tensor"), "Expression prior file")
+  ("template_mesh_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/template.obj"), "Template mesh file")
+  ("contour_points_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/contourpoints.txt"), "Contour points file")
+  ("landmarks_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/landmarks_73.txt"), "Landmarks file");
+
+  po::variables_map vm;
+
+  try {
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::notify(vm);
+    if(vm.count("help")) {
+      cout << desc << endl;
+      return 1;
+    }
+
+    // nothing to do after successful parsing command line arguments
+
+  } catch(po::error& e) {
+    cerr << "Error: " << e.what() << endl;
+    cerr << desc << endl;
+    return 1;
   }
 
-  const string settings_filename(argv[1]);
-
-  const string model_filename("/home/phg/Data/Multilinear/blendshape_core.tensor");
-  const string id_prior_filename("/home/phg/Data/Multilinear/blendshape_u_0_aug.tensor");
-  const string exp_prior_filename("/home/phg/Data/Multilinear/blendshape_u_1_aug.tensor");
-  const string template_mesh_filename("/home/phg/Data/Multilinear/template.obj");
-  const string contour_points_filename("/home/phg/Data/Multilinear/contourpoints.txt");
-  const string landmarks_filename("/home/phg/Data/Multilinear/landmarks_73.txt");
-
+  const string model_filename(vm["model_file"].as<string>());
+  const string id_prior_filename(vm["id_prior_file"].as<string>());
+  const string exp_prior_filename(vm["exp_prior_file"].as<string>());
+  const string template_mesh_filename(vm["template_mesh_file"].as<string>());
+  const string contour_points_filename(vm["contour_points_file"].as<string>());
+  const string landmarks_filename(vm["landmarks_file"].as<string>());
+  const string settings_filename(vm["settings_file"].as<string>());
 
   BasicMesh mesh(template_mesh_filename);
   auto landmarks = LoadIndices(landmarks_filename);
   auto contour_indices = LoadContourIndices(contour_points_filename);
-
 
   // Create reconstructor and load the common resources
   MultiImageReconstructor<Constraint2D> recon;

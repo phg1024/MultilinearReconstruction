@@ -26,6 +26,12 @@ int main(int argc, char *argv[]) {
     ("blendshapes_path", po::value<string>()->required(), "Input blendshapes path.")
     ("init_recon_path", po::value<string>()->required(), "Initial reconstruction parameters path.")
     ("iter", po::value<int>()->required(), "The iteration number.")
+    ("model_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/blendshape_core.tensor"), "Multilinear model file")
+    ("id_prior_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/blendshape_u_0_aug.tensor"), "Identity prior file")
+    ("exp_prior_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/blendshape_u_1_aug.tensor"), "Expression prior file")
+    ("template_mesh_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/template.obj"), "Template mesh file")
+    ("contour_points_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/contourpoints.txt"), "Contour points file")
+    ("landmarks_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/landmarks_73.txt"), "Landmarks file")
     ("wexp", po::value<float>(), "Initial expression weight")
     ("dwexp", po::value<float>(), "Expression weight step")
     ("maxiters", po::value<int>(), "Maximum iterations")
@@ -97,12 +103,12 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  const string model_filename("/home/phg/Data/Multilinear/blendshape_core.tensor");
-  const string id_prior_filename("/home/phg/Data/Multilinear/blendshape_u_0_aug.tensor");
-  const string exp_prior_filename("/home/phg/Data/Multilinear/blendshape_u_1_aug.tensor");
-  const string template_mesh_filename("/home/phg/Data/Multilinear/template.obj");
-  const string contour_points_filename("/home/phg/Data/Multilinear/contourpoints.txt");
-  const string landmarks_filename("/home/phg/Data/Multilinear/landmarks_73.txt");
+  const string model_filename(vm["model_file"].as<string>());
+  const string id_prior_filename(vm["id_prior_file"].as<string>());
+  const string exp_prior_filename(vm["exp_prior_file"].as<string>());
+  const string template_mesh_filename(vm["template_mesh_file"].as<string>());
+  const string contour_points_filename(vm["contour_points_file"].as<string>());
+  const string landmarks_filename(vm["landmarks_file"].as<string>());
 
 
   BasicMesh mesh(template_mesh_filename);
