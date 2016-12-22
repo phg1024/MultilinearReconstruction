@@ -1,3 +1,6 @@
 [submodule "third_party/Catch"]
 	path = third_party/Catch
 	url = https://github.com/philsquared/Catch.git
+[submodule "third_party/mlpack"]
+	path = third_party/mlpack
+	url = https://github.com/mlpack/mlpack.git
