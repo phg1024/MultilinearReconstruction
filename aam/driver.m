@@ -2,7 +2,15 @@
 clear;
 visualize_results = false;
 
-datapath = '~/Data/InternetRecon3/Andy_Lau';
+repopath = '~/Data/InternetRecon3/%s';
+person = 'Andy_Lau';
+person = 'Hillary_Clinton';
+person = 'George_W_Bush';
+person = 'Zhang_Ziyi';
+person = 'Yao_Ming';
+person = 'Matt_LeBlanc';
+person = 'Mark_Zuckerberg';
+datapath = sprintf(repopath, person);
 settings_filename = fullfile(datapath, 'settings.txt');
 
 [all_images, all_points] = read_settings(settings_filename);
@@ -80,11 +88,11 @@ for i=1:length(all_images)
     end
 end
 
-[h, w, ~] = size(I{1});
+[h, w, d] = size(I{1});
 for j=1:length(mean_shape_tri)
     tri_indices{j} = mean_shape_tri(j,:);
     tri_verts_j = mean_shape_verts(tri_indices{j},:);
-    mean_mask{j} = poly2mask(tri_verts_j(:,1), tri_verts_j(:,2), h, w);
+    mean_mask{j} = repmat(poly2mask(tri_verts_j(:,1), tri_verts_j(:,2), h, w), [1, 1, d]);
 end
 
 mean_shape_poly_k = convhull(mean_shape_verts(:,1), mean_shape_verts(:,2));
@@ -130,7 +138,7 @@ parfor i=1:length(all_images)
     
     if visualize_results
         figure(2); N = 2;
-        subplot(1, N, 1); imshow(warped{i}); axis on;
+        subplot(1, N, 1); imshow(I{i}); axis on;
         subplot(1, N, 2); imshow(warped{i}); axis on;
         pause;
     end
@@ -145,15 +153,22 @@ end
 toc;
 
 tic;
-mean_texture_vec = mean_texture(mean_shape_region);
+[mean_r, mean_g, mean_b] = split_channels(mean_texture);
+mean_texture_vec = [mean_r(mean_shape_region); mean_g(mean_shape_region); mean_b(mean_shape_region)];
 mean_texture_vec0 = mean_texture_vec;
 
 for iter=1:100
     new_mean_texture_vec = zeros(size(mean_texture_vec));
+    N = length(mean_texture_vec) / 3;
     for i=1:length(I)
-        warped_vec_i = warped{i}(mean_shape_region);
+        [Ii_r, Ii_g, Ii_b] = split_channels(warped{i});
+        wr = Ii_r(mean_shape_region);
+        wg = Ii_g(mean_shape_region);
+        wb = Ii_b(mean_shape_region);
+        
+        warped_vec_i = [wr; wg; wb];
         alpha_i = dot(warped_vec_i, mean_texture_vec);
-        beta_i = mean(warped_vec_i);
+        beta_i = [mean(wr) * ones(N,1); mean(wg) * ones(N, 1); mean(wb) * ones(N,1)];
         scaled_warped_vec{i} = (warped_vec_i - beta_i) / alpha_i;
         new_mean_texture_vec = new_mean_texture_vec + scaled_warped_vec{i};
     end
@@ -163,16 +178,20 @@ for iter=1:100
     if norm(mean_texture_vec - new_mean_texture_vec) < 1e-6
         break
     end
-    step_alpha = 0.25;
+    step_alpha = 0.5;
     mean_texture_vec = mean_texture_vec * step_alpha + (1.0 - step_alpha) * new_mean_texture_vec;
     
-    final_mean_texture = mean_texture;
-    final_mean_texture(mean_shape_region) = mean_texture_vec;
+    [final_r, final_g, final_b] = split_channels(mean_texture);
+    
+    final_r(mean_shape_region) = mean_texture_vec(1:N);
+    final_g(mean_shape_region) = mean_texture_vec(N+1:N*2);
+    final_b(mean_shape_region) = mean_texture_vec(N*2+1:end);
+    final_mean_texture = cat(3, final_r, final_g, final_b);
     
     if visualize_results
         figure(1);
-        subplot(1, 2, 1); imagesc(mean_texture); axis equal; colorbar;
-        subplot(1, 2, 2); imagesc(final_mean_texture); axis equal; colorbar;
+        subplot(1, 2, 1); imshow(mean_texture); axis equal; colorbar;
+        subplot(1, 2, 2); imshow(final_mean_texture); axis equal; colorbar;
         pause;
     end
 end
@@ -181,37 +200,150 @@ toc;
 % build texture model
 all_texture_vec = cell2mat(scaled_warped_vec);
 all_texture_vec = all_texture_vec - repmat(mean_texture_vec, 1, size(all_texture_vec, 2));
-[coeff, score, latent, tsquared, explained] = pca(all_texture_vec');
-total_explained = cumsum(explained);
-num_modes = find(total_explained>25, 1, 'first');
-model.texture.num_modes = num_modes;
-model.texture.x = mean_texture_vec;
-model.texture.P = coeff(:, 1:num_modes);
 
-% build the joint model
-% for i=1:83
-%     tvec = zeros(83,1);
-%     tvec(i) = 50;
-%     [s, g] = synthesize(model, zeros(16, 1), tvec);
-%     syn_texture = mean_texture;
-%     syn_texture(mean_shape_region) = g;
-%     figure(1);imshow(syn_texture); axis equal; colorbar;
-%     pause;
-% end
-
-for i=1:length(I)
-    % normalize the input vector first
-    normalized_texture_i = warped{i}(mean_shape_region);
-    alpha_i = dot(normalized_texture_i, mean_texture_vec);
-    beta_i = mean(normalized_texture_i);
-    normalized_texture_i = (normalized_texture_i - beta_i) / alpha_i;
-    tvec = model.texture.P' * (normalized_texture_i - mean_texture_vec);
-    [s, g] = synthesize(model, zeros(16, 1), tvec);
-    syn_texture = mean_texture;
-    syn_texture(mean_shape_region) = g * alpha_i + beta_i;
-    figure(2);
-    subplot(1, 3, 1); imshow(warped{i});
-    subplot(1, 3, 2); imshow(syn_texture); 
-    subplot(1, 3, 3); imagesc(syn_texture - im2double(warped{i}));axis equal;
-    pause;    
+if 1
+    for i=1:length(I)
+        % build k models
+        num_models = 1;
+        model.num_texture_models = num_models;
+        model.texture = cell(num_models, 1);
+        for k=1:num_models
+            samples_k = setdiff([1:size(all_texture_vec,2)], i);
+            [coeff, score, latent, tsquared, explained] = pca(all_texture_vec(:, samples_k)');
+            total_explained = cumsum(explained);
+            num_modes = find(total_explained>75, 1, 'first');
+            model.texture{k}.num_modes = num_modes;
+            model.texture{k}.x = mean_texture_vec;
+            model.texture{k}.P = coeff(:, 1:num_modes);
+        end        
+        
+        [Ii_r, Ii_g, Ii_b] = split_channels(warped{i});
+        Ir = Ii_r(mean_shape_region);
+        Ig = Ii_g(mean_shape_region);
+        Ib = Ii_b(mean_shape_region);
+        
+        diff_i = zeros(size(I{i}));
+        syn_i = zeros(size(I{i}));
+        norm_i = 0;
+        max_norm_i = 0;
+        for k=1:model.num_texture_models
+            % normalize the input vector first
+            normalized_texture_i = [Ir; Ig; Ib];
+            alpha_i = dot(normalized_texture_i, model.texture{k}.x);
+            beta_i = [mean(Ir) * ones(N,1); mean(Ig) * ones(N,1); mean(Ib) * ones(N,1)];
+            normalized_texture_i = (normalized_texture_i - beta_i) / alpha_i;
+            size(normalized_texture_i)
+            size(model.texture{k}.x)
+            size(model.texture{k}.P)
+            tvec = model.texture{k}.P' * (normalized_texture_i - model.texture{k}.x);
+            [s, g] = synthesize(model, zeros(model.shape.num_modes, 1), tvec, k);
+            
+            max_norm_i = max(max_norm_i, norm(g - normalized_texture_i));
+            norm_i = norm_i + norm(g - normalized_texture_i);
+            
+            % unnormalize the fitted vector
+            g = g * alpha_i + beta_i;
+            [s_r, s_g, s_b] = split_channels(mean_texture);
+            N = length(g) / 3;
+            s_r(mean_shape_region) = g(1:N);
+            s_g(mean_shape_region) = g(N+1:N*2);
+            s_b(mean_shape_region) = g(N*2+1:end);
+            norm(s_r-s_g)
+            norm(s_g-s_b)
+            syn_texture = cat(3, s_r, s_g, s_b);
+            
+            syn_i = syn_i + syn_texture;
+            diff_i = diff_i + abs(syn_texture - im2double(warped{i}));
+        end
+        
+        syn_i = syn_i / model.num_texture_models;
+        diff_i = diff_i / model.num_texture_models;
+        norm_i = norm_i / model.num_texture_models;
+        diff2_i = warped{i} - syn_i;
+        
+        figure(2);
+        subplot(1, 4, 1); imshow(I{i}); hold on; plot(pts{i}(:,1), pts{i}(:,2), 'g.');
+        subplot(1, 4, 2); imshow(warped{i});
+        subplot(1, 4, 3); imshow(syn_i);
+        subplot(1, 4, 4); imagesc(diff_i);axis equal;title(sprintf('norm = %.6f\nmax norm = %.6f\ndiff = %.6f', norm_i, max_norm_i, norm(diff2_i(:))));
+        pause;
+    end    
+else    
+    % build k models
+    num_models = 64;
+    model.num_texture_models = num_models;
+    model.texture = cell(num_models, 1);
+    for k=1:num_models
+        samples_k = randperm(size(all_texture_vec, 2), ceil(length(I) / 10));
+        [coeff, score, latent, tsquared, explained] = pca(all_texture_vec(:, samples_k)');
+        total_explained = cumsum(explained);
+        num_modes = find(total_explained>98, 1, 'first');
+        model.texture{k}.num_modes = num_modes;
+        model.texture{k}.x = mean_texture_vec;
+        model.texture{k}.P = coeff(:, 1:num_modes);
+    end
+    
+    % build the joint model
+    % for i=1:83
+    %     tvec = zeros(83,1);
+    %     tvec(i) = 50;
+    %     [s, g] = synthesize(model, zeros(16, 1), tvec);
+    %     syn_texture = mean_texture;
+    %     syn_texture(mean_shape_region) = g;
+    %     figure(1);imshow(syn_texture); axis equal; colorbar;
+    %     pause;
+    % end
+    
+    for i=1:length(I)
+        [Ii_r, Ii_g, Ii_b] = split_channels(warped{i});
+        Ir = Ii_r(mean_shape_region);
+        Ig = Ii_g(mean_shape_region);
+        Ib = Ii_b(mean_shape_region);
+        
+        diff_i = zeros(size(I{i}));
+        syn_i = zeros(size(I{i}));
+        norm_i = 0;
+        max_norm_i = 0;
+        for k=1:model.num_texture_models
+            % normalize the input vector first
+            normalized_texture_i = [Ir; Ig; Ib];
+            alpha_i = dot(normalized_texture_i, model.texture{k}.x);
+            beta_i = [mean(Ir) * ones(N,1); mean(Ig) * ones(N,1); mean(Ib) * ones(N,1)];
+            normalized_texture_i = (normalized_texture_i - beta_i) / alpha_i;
+            size(normalized_texture_i)
+            size(model.texture{k}.x)
+            size(model.texture{k}.P)
+            tvec = model.texture{k}.P' * (normalized_texture_i - model.texture{k}.x);
+            [s, g] = synthesize(model, zeros(16, 1), tvec, k);
+            
+            max_norm_i = max(max_norm_i, norm(g - normalized_texture_i));
+            norm_i = norm_i + norm(g - normalized_texture_i);
+            
+            % unnormalize the fitted vector
+            g = g * alpha_i + beta_i;
+            [s_r, s_g, s_b] = split_channels(mean_texture);
+            N = length(g) / 3;
+            s_r(mean_shape_region) = g(1:N);
+            s_g(mean_shape_region) = g(N+1:N*2);
+            s_b(mean_shape_region) = g(N*2+1:end);
+            norm(s_r-s_g)
+            norm(s_g-s_b)
+            syn_texture = cat(3, s_r, s_g, s_b);
+            
+            syn_i = syn_i + syn_texture;
+            diff_i = diff_i + abs(syn_texture - im2double(warped{i}));
+        end
+        
+        syn_i = syn_i / model.num_texture_models;
+        diff_i = diff_i / model.num_texture_models;
+        norm_i = norm_i / model.num_texture_models;
+        diff2_i = warped{i} - syn_i;
+        
+        figure(2);
+        subplot(1, 4, 1); imshow(I{i}); hold on; plot(pts{i}(:,1), pts{i}(:,2), 'g.');
+        subplot(1, 4, 2); imshow(warped{i});
+        subplot(1, 4, 3); imshow(syn_i);
+        subplot(1, 4, 4); imagesc(diff_i);axis equal;title(sprintf('norm = %.6f\nmax norm = %.6f\ndiff = %.6f', norm_i, max_norm_i, norm(diff2_i(:))));
+        pause;
+    end
 end
