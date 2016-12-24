@@ -91,4 +91,12 @@ target_link_libraries(test_subdivision basicmesh)
 add_executable(test_ceres test_ceres.cpp)
 #target_link_libraries(test_ceres)
 
+#set(MATLABROOT "/usr/local/MATLAB/R2016b/")
+#set(MATLAB_LIBS "-L${MATLABROOT}/bin/glnxa64 -leng -lmat -lmex -lut -lmx")
+#include_directories("${MATLABROOT}/extern/include")
+#add_executable(test_matlab test_matlab.cpp)
+#target_link_libraries(test_matlab ${MATLAB_LIBS})
+
+add_executable(test_pipe test_pipe.cpp)
+
 link_directories(..)

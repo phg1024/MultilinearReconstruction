@@ -581,7 +581,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
           n_expression[i] = make_pair(i, (param_sets[i].model.Wexp_FACS).norm());
         }
 
-        auto subset_expression = take_first_k(n_expression, (0.6 + iters_main_loop * 0.1) * num_images);
+        auto subset_expression = take_first_k(n_expression, 0.8 * num_images);
         for(auto sx : subset_expression) cout << sx << ' '; cout << endl;
 
         #if 1
