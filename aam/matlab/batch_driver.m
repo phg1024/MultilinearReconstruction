@@ -9,10 +9,11 @@ persons = dir(sprintf(repopath, '*_*'));
 %person = 'yaoming';    
 tic;
 for i=4:length(persons)
+    close all;
     person = persons(i).name
     if strcmp(person, 'Allen_Turing')
         continue;
     end
-    driver
+    AAMfilter(repopath, persons(i).name, method, visualize_results);
 end
 toc;

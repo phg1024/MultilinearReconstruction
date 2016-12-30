@@ -1,4 +1,5 @@
 %% driver for AAM algorithm
+function AAMfilter(repopath, person, method, visualize_results)
 
 datapath = sprintf(repopath, person);
 settings_filename = fullfile(datapath, 'settings.txt');
