@@ -1,5 +1,5 @@
 %% align shape s to the reference shape s0
-function t = align_shape(s, s0)
+function [t, tform] = align_shape(s, s0)
 
 p0 = reshape(s0, 2, [])';
 p = reshape(s, 2, [])';
