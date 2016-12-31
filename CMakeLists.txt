@@ -207,4 +207,5 @@ target_link_libraries(MultiImageReconstruction_exp
 add_executable(MultilinearModelBuilder multilinearmodelbuilder.cpp)
 target_link_libraries(MultilinearModelBuilder multilinearmodel)
 
+add_subdirectory(AAM)
 add_subdirectory(tests)

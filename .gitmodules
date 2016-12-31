@@ -4,3 +4,6 @@
 [submodule "third_party/mlpack"]
 	path = third_party/mlpack
 	url = https://github.com/mlpack/mlpack.git
+[submodule "AAM"]
+	path = AAM
+	url = git@github.com:phg1024/AAM.git
