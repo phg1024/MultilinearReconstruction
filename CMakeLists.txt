@@ -179,6 +179,7 @@ target_link_libraries(MultiImageReconstruction
         ioutilities
         offscreenmeshvisualizer
         tensor
+        aammodel
         Qt5::Core
         Qt5::Widgets
         Qt5::OpenGL
@@ -196,6 +197,7 @@ target_link_libraries(MultiImageReconstruction_exp
                       basicmesh
                       ioutilities
                       tensor
+                      aammodel
                       Qt5::Core
                       Qt5::Widgets
                       Qt5::OpenGL

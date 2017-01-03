@@ -27,6 +27,8 @@
 
 #include "OffscreenMeshVisualizer.h"
 
+#include "AAM/aammodel.h"
+
 #include "boost/filesystem/operations.hpp"
 #include "boost/filesystem/path.hpp"
 
@@ -214,9 +216,9 @@ namespace {
     for(size_t i=0;i<num_pixels_s;++i) {
       int y = valid_pixels_s[i] / num_cols_s;
       int x = valid_pixels_s[i] % num_cols_s;
-      result.setPixel(x, y, qRgb(clamp<double>(est_im(0, i) * 255.0, 0, 255),
-                                 clamp<double>(est_im(1, i) * 255.0, 0, 255),
-                                 clamp<double>(est_im(2, i) * 255.0, 0, 255)));
+      result.setPixel(x, y, qRgb(clamp<double>(est_im(0, i) * 255.0, 0., 255.),
+                                 clamp<double>(est_im(1, i) * 255.0, 0., 255.),
+                                 clamp<double>(est_im(2, i) * 255.0, 0., 255.)));
     }
     return result;
   }
@@ -340,6 +342,9 @@ private:
   vector<pair<QImage, vector<Constraint>>> image_points_pairs;
   vector<string> image_filenames;
 
+  // AAM model for consistent set selection
+  aam::AAMModel aam;
+
   // A set of parameters for each image
   vector<ParameterSet> param_sets;
 
@@ -457,6 +462,36 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
   }
 
   const int num_images = image_points_pairs.size();
+
+  // Initialize AAM model
+  auto constraints_to_mat = [=](const vector<Constraint>& constraints, int h) {
+    const int npoints = constraints.size();
+    cv::Mat m(npoints, 2, CV_64FC1);
+    for(int j=0;j<npoints;++j) {
+      m.at<double>(j, 0) = constraints[j].data.x;
+      m.at<double>(j, 1) = h - constraints[j].data.y;
+    }
+    return m;
+  };
+  {
+    vector<QImage> images(image_points_pairs.size());
+    vector<cv::Mat> points(image_points_pairs.size());
+
+    // Collect input images and points
+    for(int i=0;i<image_points_pairs.size();++i) {
+      images[i] = image_points_pairs[i].first;
+      points[i] = constraints_to_mat(image_points_pairs[i].second,
+                                     image_points_pairs[i].first.height());
+    }
+
+    aam.SetImages(images);
+    aam.SetPoints(points);
+    aam.Preprocess();
+
+    // For Debugging
+    aam.BuildModel();
+  }
+
 
   VectorXd identity_centroid;
 
