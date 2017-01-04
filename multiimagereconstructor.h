@@ -489,9 +489,11 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
     aam.SetImages(images);
     aam.SetPoints(points);
     aam.Preprocess();
+    aam.SetErrorMetric(aam::AAMModel::FittingError);
+    aam.SetOutputPath(result_path.string());
 
     // For Debugging
-    inliers = aam.FindInliers();
+    inliers = aam.FindInliers_Iterative();
   }
 
 
