@@ -473,6 +473,8 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
     }
     return m;
   };
+
+  vector<int> inliers;
   {
     vector<QImage> images(image_points_pairs.size());
     vector<cv::Mat> points(image_points_pairs.size());
@@ -489,7 +491,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
     aam.Preprocess();
 
     // For Debugging
-    aam.BuildModel();
+    inliers = aam.FindInliers();
   }
 
 
@@ -505,8 +507,14 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
   vector<MatrixXd> identity_weights_history;
   vector<VectorXd> identity_weights_centroid_history;
 
-  vector<int> consistent_set(num_images), final_chosen_set;
-  for(int i=0;i<num_images;++i) consistent_set[i] = i;
+  vector<int> consistent_set, final_chosen_set;
+  // Initialize the consistent set to inliers
+#if 0
+  consistent_set.resize(num_images);
+  iota(consistent_set.begin(), consistent_set.end(), 0);
+#else
+  consistent_set = inliers;
+#endif
 
   while(iters_main_loop++ < 3){
     fs::path step_result_path = result_path / fs::path("step" + to_string(iters_main_loop));
