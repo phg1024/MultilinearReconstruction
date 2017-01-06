@@ -486,11 +486,11 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
                                      image_points_pairs[i].first.height());
     }
 
+    aam.SetOutputPath(result_path.string());
     aam.SetImages(images);
     aam.SetPoints(points);
     aam.Preprocess();
     aam.SetErrorMetric(aam::AAMModel::FittingError);
-    aam.SetOutputPath(result_path.string());
 
     // For Debugging
     inliers = aam.FindInliers_Iterative();
@@ -890,7 +890,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
 #if 1
             // Use expression as a condition
             bool exclude = (subset_expression.count(i) == 0) || (subset_error.count(i) == 0) ||
-                           (subset_texture.count(i) == 0);
+                           (subset_texture.count(i) == 0) || (find(inliers.begin(), inliers.end(), i) == inliers.end());
 
 #else
             // Use only recon error and texture metric
