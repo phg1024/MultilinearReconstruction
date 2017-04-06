@@ -27,7 +27,8 @@ int main(int argc, char *argv[]) {
     ("perturb_range", po::value<double>(), "Range of perturbation")
     ("error_thres", po::value<double>(), "Error threhsold")
     ("error_diff_thres", po::value<double>(), "Error difference threhsold")
-    ("vis,v", "Visualize reconstruction results");
+    ("vis,v", "Visualize reconstruction results")
+    ("no_selection", "Disable subset selection");
   po::variables_map vm;
   OptimizationParameters opt_params = OptimizationParameters::Defaults();
 

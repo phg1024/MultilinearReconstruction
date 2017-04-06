@@ -27,7 +27,9 @@ int main(int argc, char *argv[]) {
   ("exp_prior_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/blendshape_u_1_aug.tensor"), "Expression prior file")
   ("template_mesh_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/template.obj"), "Template mesh file")
   ("contour_points_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/contourpoints.txt"), "Contour points file")
-  ("landmarks_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/landmarks_73.txt"), "Landmarks file");
+  ("landmarks_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/landmarks_73.txt"), "Landmarks file")
+  ("direct_multi_recon", "Use direct multi-recon")
+  ("no_selection", "Disable selection");
 
   po::variables_map vm;
 
@@ -66,6 +68,9 @@ int main(int argc, char *argv[]) {
   recon.SetMesh(mesh);
   recon.SetContourIndices(contour_indices);
   recon.SetIndices(landmarks);
+
+  if(vm.count("no_selection")) recon.SetSelectionState(false);
+  if(vm.count("direct_multi_recon")) recon.SetDirectMultiRecon(true);
 
   // Parse the setting file and load image related resources
   fs::path settings_filepath(settings_filename);

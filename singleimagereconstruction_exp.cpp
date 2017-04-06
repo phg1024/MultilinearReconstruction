@@ -8,6 +8,7 @@ pose and expression weights, and estimates optimal pose and expression weights.
 #include "ioutilities.h"
 #include "meshvisualizer.h"
 #include "meshvisualizer2.h"
+#include "OffscreenMeshVisualizer.h"
 #include "singleimagereconstructor_exp.hpp"
 #include "glog/logging.h"
 #include "boost/timer/timer.hpp"
@@ -140,7 +141,7 @@ int main(int argc, char *argv[]) {
   // Reset the expression weights
   recon_results.params_model.Wexp_FACS(0) = 1.0;
   for(int i=1;i<47;++i) recon_results.params_model.Wexp_FACS(i) = 0.0;
-  
+
   recon.SetInitialParameters(recon_results.params_model, recon_results.params_cam);
   recon.LoadBlendshapes(blendshapes_path);
 
@@ -160,6 +161,7 @@ int main(int argc, char *argv[]) {
   auto T = recon.GetTranslation();
   auto cam_params = recon.GetCameraParameters();
 
+#if 0
   MeshVisualizer2 w("reconstruction result", mesh);
   w.BindConstraints(constraints);
   w.BindImage(img);
@@ -193,4 +195,22 @@ int main(int argc, char *argv[]) {
   } else {
     return 0;
   }
+#else
+  {
+    OffscreenMeshVisualizer visualizer(640, 640);
+
+    visualizer.SetMVPMode(OffscreenMeshVisualizer::CamPerspective);
+    visualizer.SetRenderMode(OffscreenMeshVisualizer::MeshAndImage);
+    visualizer.BindMesh(mesh);
+    visualizer.BindImage(img);
+    visualizer.SetCameraParameters(cam_params);
+    visualizer.SetMeshRotationTranslation(R, T);
+    visualizer.SetIndexEncoded(false);
+    visualizer.SetEnableLighting(true);
+
+    QImage I = visualizer.Render(true);
+    I.save( (recon_path / image_path.filename()).string().c_str() );
+  }
+  return 0;
+#endif
 }

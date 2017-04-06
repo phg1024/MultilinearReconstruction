@@ -157,6 +157,8 @@ public:
   void LoadBlendshapes(const string& blendshapes_path, bool alsoApplyWeights=true);
   void RefereshWeights() {
     ApplyWeights();
+    // HACK for pure synthesis mode
+    UpdateMesh();
   }
 
   void ToggleDisplayStepResult() {

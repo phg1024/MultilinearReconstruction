@@ -227,7 +227,7 @@ namespace {
 template <typename Constraint>
 class MultiImageReconstructor {
 public:
-  MultiImageReconstructor() {}
+  MultiImageReconstructor(): enable_selection(true), direct_multi_recon(false) {}
 
   void LoadModel(const string& filename) {
     model = MultilinearModel(filename);
@@ -272,6 +272,9 @@ public:
     }
     return idxs;
   }
+
+  void SetSelectionState(bool val) { enable_selection = val; }
+  void SetDirectMultiRecon(bool val) { direct_multi_recon = val; }
 
 protected:
   void VisualizeReconstructionResult(const fs::path& folder, int i, bool scale_output=true) {
@@ -350,6 +353,9 @@ private:
 
   // The worker for single image reconstruction
   SingleImageReconstructor<Constraint> single_recon;
+
+  bool enable_selection;
+  bool direct_multi_recon;
 };
 
 namespace {
@@ -475,7 +481,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
   };
 
   vector<int> inliers;
-  {
+  if(enable_selection) {
     vector<QImage> images(image_points_pairs.size());
     vector<cv::Mat> points(image_points_pairs.size());
 
@@ -494,8 +500,10 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
 
     // For Debugging
     inliers = aam.FindInliers_Iterative();
+  } else {
+    inliers.resize(num_images);
+    iota(inliers.begin(), inliers.end(), 0);
   }
-
 
   VectorXd identity_centroid;
 
@@ -542,10 +550,10 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
       if(iters_main_loop > 1) single_recon.SetIdentityPrior(identity_centroid);
 
       // Perform reconstruction
-      {
+      if(!direct_multi_recon) {
         boost::timer::auto_cpu_timer t("Single image reconstruction finished in %w seconds.\n");
         single_recon.Reconstruct(opt_params);
-      }
+      } else continue;
 
       // Store results
       auto tm = single_recon.GetGeometry();
@@ -574,7 +582,8 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
     fs::path selection_result_path = step_result_path / fs::path("selection");
     safe_create(selection_result_path);
 
-    const int selection_method = 1;
+    int selection_method = enable_selection?1:2;
+
     switch(selection_method) {
       case 0: {
         const double ratios[] = {0.0, 0.4, 0.6, 0.8};
@@ -911,6 +920,10 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
         for(auto i : consistent_set) {
           VisualizeReconstructionResult(selection_result_path, i);
         }
+        break;
+      }
+      case 2: {
+        // nothing to do, just use whatever consistent_set is
         break;
       }
     }

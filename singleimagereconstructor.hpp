@@ -49,7 +49,8 @@ public:
   };
 
   SingleImageReconstructor()
-    : opt_mode(All), need_precise_result(false), is_parameters_initialized(false), display_step_result(false) {}
+    : opt_mode(All), need_precise_result(false), is_parameters_initialized(false),
+    display_step_result(false), enable_selection(true) {}
 
   void LoadModel(const string &filename) { model = MultilinearModel(filename); }
 
@@ -147,6 +148,10 @@ public:
     display_step_result = !display_step_result;
   }
 
+  void ToggleSubsetSelection() {
+    enable_selection = false;
+  }
+
 protected:
   void InitializeParameters(bool with_perturbation=false, double perturb_range=0.0);
 
@@ -195,6 +200,8 @@ private:
   bool need_precise_result;
   bool is_parameters_initialized;
   bool display_step_result;
+
+  bool enable_selection;
 };
 
 template <typename Constraint>

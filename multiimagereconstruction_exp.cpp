@@ -32,6 +32,7 @@ int main(int argc, char *argv[]) {
     ("template_mesh_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/template.obj"), "Template mesh file")
     ("contour_points_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/contourpoints.txt"), "Contour points file")
     ("landmarks_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/landmarks_73.txt"), "Landmarks file")
+    ("texture_file", po::value<string>(), "Texture for rendering the mesh")
     ("wexp", po::value<float>(), "Initial expression weight")
     ("dwexp", po::value<float>(), "Expression weight step")
     ("maxiters", po::value<int>(), "Maximum iterations")
@@ -39,7 +40,8 @@ int main(int argc, char *argv[]) {
     ("perturb_range", po::value<double>(), "Range of perturbation")
     ("error_thres", po::value<double>(), "Error threhsold")
     ("error_diff_thres", po::value<double>(), "Error difference threhsold")
-    ("vis,v", "Visualize reconstruction results");
+    ("vis,v", "Visualize reconstruction results")
+    ("no_opt", "Do not run optimization at all. Pure synthesize mode.");
   po::variables_map vm;
 
   OptimizationParameters opt_params = OptimizationParameters::Defaults();
@@ -115,7 +117,12 @@ int main(int argc, char *argv[]) {
   auto contour_indices = LoadContourIndices(contour_points_filename);
   auto landmarks = LoadIndices(landmarks_filename);
 
-
+  auto valid_faces_indices_quad = LoadIndices("/home/phg/Data/Multilinear/face_region_indices.txt");
+  vector<int> valid_faces_indices;
+  for(auto fidx : valid_faces_indices_quad) {
+    valid_faces_indices.push_back(fidx*2);
+    valid_faces_indices.push_back(fidx*2+1);
+  }
 
   // Create reconstructor and load the common resources
   SingleImageReconstructor<Constraint2D> recon;
@@ -138,15 +145,20 @@ int main(int argc, char *argv[]) {
     QImage img = image_points_pair.first;
     auto constraints = image_points_pair.second;
 
+    bool pure_syn_mode = vm.count("no_opt");
+
     recon.SetImage(img);
     recon.SetImageSize(img.width(), img.height());
     recon.SetConstraints(constraints);
     recon.SetImageFilename(image_filename.string());
-    recon.SetOptimizationMode(
-      SingleImageReconstructor<Constraint2D>::OptimizationMode(
-        SingleImageReconstructor<Constraint2D>::Pose
-      | SingleImageReconstructor<Constraint2D>::Expression
-      | SingleImageReconstructor<Constraint2D>::FocalLength));
+    if(pure_syn_mode) {
+    } else {
+      recon.SetOptimizationMode(
+        SingleImageReconstructor<Constraint2D>::OptimizationMode(
+          SingleImageReconstructor<Constraint2D>::Pose
+        | SingleImageReconstructor<Constraint2D>::Expression
+        | SingleImageReconstructor<Constraint2D>::FocalLength));
+    }
 
     // Load the initial recon results and blendshapes
     auto recon_results = LoadReconstructionResult(
@@ -154,16 +166,20 @@ int main(int argc, char *argv[]) {
 
     // Reset the expression weights
     const bool reset_exp_weights = true;
-    if(reset_exp_weights) {
-      recon_results.params_model.Wexp_FACS(0) = 1.0;
-      for(int i=1;i<47;++i) recon_results.params_model.Wexp_FACS(i) = 0.0;
+    if(pure_syn_mode) {
+
+    } else {
+      if(reset_exp_weights) {
+        recon_results.params_model.Wexp_FACS(0) = 1.0;
+        for(int i=1;i<47;++i) recon_results.params_model.Wexp_FACS(i) = 0.0;
+      }
     }
 
     recon.SetInitialParameters(recon_results.params_model, recon_results.params_cam);
     recon.RefereshWeights();
 
     // Do reconstruction
-    {
+    if(!pure_syn_mode){
       boost::timer::auto_cpu_timer t("Reconstruction finished in %w seconds.\n");
       recon.Reconstruct(opt_params);
     }
@@ -188,6 +204,17 @@ int main(int argc, char *argv[]) {
 
       visualizer.SetMVPMode(OffscreenMeshVisualizer::CamPerspective);
       visualizer.SetRenderMode(OffscreenMeshVisualizer::MeshAndImage);
+
+      /*
+      // HACK
+      visualizer.SetRenderMode(OffscreenMeshVisualizer::TexturedMesh);
+      QImage texture_img(QString::fromStdString(vm["texture_file"].as<string>()));
+      visualizer.BindTexture(texture_img);
+      */
+
+      // HACK render frontal face region only
+      //visualizer.SetFacesToRender(valid_faces_indices);
+
       visualizer.BindMesh(mesh);
       visualizer.BindImage(img);
       visualizer.SetCameraParameters(cam_params);
