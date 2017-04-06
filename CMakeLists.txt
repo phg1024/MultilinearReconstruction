@@ -159,6 +159,7 @@ add_executable(SingleImageReconstruction_exp singleimagereconstruction_exp.cpp s
 target_link_libraries(SingleImageReconstruction_exp
                       meshvisualizer
                       meshvisualizer2
+                      offscreenmeshvisualizer
                       multilinearmodel
                       basicmesh
                       ioutilities
@@ -210,4 +211,5 @@ add_executable(MultilinearModelBuilder multilinearmodelbuilder.cpp)
 target_link_libraries(MultilinearModelBuilder multilinearmodel)
 
 add_subdirectory(AAM)
+add_subdirectory(ImageDedup)
 add_subdirectory(tests)

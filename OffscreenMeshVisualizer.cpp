@@ -84,7 +84,8 @@ void OffscreenMeshVisualizer::CreateTexture() const {
   glEnable(GL_TEXTURE_2D);
   glGenTextures(1, &image_tex);
   glBindTexture(GL_TEXTURE_2D, image_tex);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width(), image.height(), 0, GL_BGRA,
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width(), image.height(), 0,
+               GL_BGRA,
                GL_UNSIGNED_BYTE, image.bits());
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -103,6 +104,7 @@ void OffscreenMeshVisualizer::EnableLighting() const
   GLfloat mat_shininess[] = {25.0};
   GLfloat light_ambient[] = {0.05, 0.05, 0.05, 1.0};
   GLfloat white_light[] = {1.0, 1.0, 1.0, 1.0};
+  GLfloat black_light[] = {0.5, 0.5, 0.5, 1.0};
 
   glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, mat_specular);
   glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, mat_shininess);
@@ -301,6 +303,8 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
       const double face_alpha = 1.0;
       glColor4d(.75, .75, .75, face_alpha);
       GLfloat mat_diffuse[] = {0.5, 0.5, 0.5, static_cast<float>(face_alpha)};
+      //GLfloat mat_diffuse[] = {0.45, 0.25, 0.95, static_cast<float>(face_alpha)};
+      GLfloat wire_diffuse[] = {0.0, 0.0, 0.0, 0.25};
       GLfloat mat_specular[] = {0.25, 0.25, 0.25, static_cast<float>(face_alpha)};
       GLfloat mat_shininess[] = {75.0};
       glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
@@ -320,10 +324,17 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
 
         glBegin(GL_TRIANGLES);
 
+        //GLfloat face_color_0[] = {(n0[0]+1.0)*0.5, (n0[1]+1.0)*0.5, (n0[2]+1.0)*0.5, static_cast<float>(face_alpha)};
+        //glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, face_color_0);
         glNormal3dv(n0.data());glVertex3f(v0[0], v0[1], v0[2]);
-        glNormal3dv(n1.data());glVertex3f(v1[0], v1[1], v1[2]);
-        glNormal3dv(n2.data());glVertex3f(v2[0], v2[1], v2[2]);
 
+        //GLfloat face_color_1[] = {(n1[0]+1.0)*0.5, (n1[1]+1.0)*0.5, (n1[2]+1.0)*0.5, static_cast<float>(face_alpha)};
+        //glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, face_color_1);
+        glNormal3dv(n1.data());glVertex3f(v1[0], v1[1], v1[2]);
+
+        //GLfloat face_color_2[] = {(n2[0]+1.0)*0.5, (n2[1]+1.0)*0.5, (n2[2]+1.0)*0.5, static_cast<float>(face_alpha)};
+        //glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, face_color_2);
+        glNormal3dv(n2.data());glVertex3f(v2[0], v2[1], v2[2]);
         glEnd();
       }
       glDisable(GL_CULL_FACE);
