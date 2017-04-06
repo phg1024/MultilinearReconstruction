@@ -7,3 +7,6 @@
 [submodule "AAM"]
 	path = AAM
 	url = git@github.com:phg1024/AAM.git
+[submodule "ImageDedup"]
+	path = ImageDedup
+	url = git@github.com:phg1024/ImageDedup.git
