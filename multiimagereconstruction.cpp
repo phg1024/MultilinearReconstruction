@@ -29,7 +29,9 @@ int main(int argc, char *argv[]) {
   ("contour_points_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/contourpoints.txt"), "Contour points file")
   ("landmarks_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/landmarks_73.txt"), "Landmarks file")
   ("direct_multi_recon", "Use direct multi-recon")
-  ("no_selection", "Disable selection");
+  ("no_selection", "Disable selection")
+  ("no_failure_detection", "Disable feature points failure detection")
+  ("no_progressive", "Diable progressive reconstruction");
 
   po::variables_map vm;
 
@@ -69,8 +71,10 @@ int main(int argc, char *argv[]) {
   recon.SetContourIndices(contour_indices);
   recon.SetIndices(landmarks);
 
-  if(vm.count("no_selection")) recon.SetSelectionState(false);
-  if(vm.count("direct_multi_recon")) recon.SetDirectMultiRecon(true);
+  recon.SetSelectionState(!vm.count("no_selection"));
+  recon.SetFailureDetectionState(!vm.count("no_failure_detection"));
+  recon.SetProgressiveReconState(!vm.count("no_progressive"));
+  recon.SetDirectMultiRecon(vm.count("direct_multi_recon"));
 
   // Parse the setting file and load image related resources
   fs::path settings_filepath(settings_filename);

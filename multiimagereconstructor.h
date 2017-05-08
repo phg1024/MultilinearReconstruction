@@ -227,7 +227,10 @@ namespace {
 template <typename Constraint>
 class MultiImageReconstructor {
 public:
-  MultiImageReconstructor(): enable_selection(true), direct_multi_recon(false) {}
+  MultiImageReconstructor():
+    enable_selection(true),
+    enable_failure_detection(true),
+    direct_multi_recon(false) {}
 
   void LoadModel(const string& filename) {
     model = MultilinearModel(filename);
@@ -274,7 +277,9 @@ public:
   }
 
   void SetSelectionState(bool val) { enable_selection = val; }
+  void SetFailureDetectionState(bool val) { enable_failure_detection = val; }
   void SetDirectMultiRecon(bool val) { direct_multi_recon = val; }
+  void SetProgressiveReconState(bool val) { enable_progressive_recon = val; }
 
 protected:
   void VisualizeReconstructionResult(const fs::path& folder, int i, bool scale_output=true) {
@@ -355,6 +360,8 @@ private:
   SingleImageReconstructor<Constraint> single_recon;
 
   bool enable_selection;
+  bool enable_failure_detection;
+  bool enable_progressive_recon;
   bool direct_multi_recon;
 };
 
@@ -481,7 +488,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
   };
 
   vector<int> inliers;
-  if(enable_selection) {
+  if(enable_failure_detection) {
     vector<QImage> images(image_points_pairs.size());
     vector<cv::Mat> points(image_points_pairs.size());
 
@@ -511,7 +518,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
   //  1. Use single image reconstructor to do per-image reconstruction first
   //  2. Select a consistent set of images for joint reconstruction
   //  3. Convergence test. If not converged, goto step 1.
-  const int max_iters_main_loop = 3;
+  const int max_iters_main_loop = enable_progressive_recon?3:1;
   int iters_main_loop = 0;
 
   vector<MatrixXd> identity_weights_history;
@@ -526,7 +533,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
   consistent_set = inliers;
 #endif
 
-  while(iters_main_loop++ < 3){
+  while(iters_main_loop++ < max_iters_main_loop){
     fs::path step_result_path = result_path / fs::path("step" + to_string(iters_main_loop));
     safe_create(step_result_path);
 
@@ -595,7 +602,11 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
         break;
       }
       case 1: {
-        const double ratios[] = {0.0, 0.4, 0.6, 0.8};
+        double ratios[] = {0.0, 0.4, 0.6, 0.8};
+
+        // HACK for testing the system without progressive reconstruction
+        if(max_iters_main_loop == 1) ratios[1] = 0.8;
+
         // Take the first few as good shape
         int k = max(1, static_cast<int>(ratios[iters_main_loop] * num_images));
 
@@ -955,8 +966,14 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
       // In the final iteration, no need to refine the identity weights anymore
       if((iters_joint_optimization == num_iters_joint_optimization - 1) && (iters_main_loop == max_iters_main_loop)) {
         // Store the final selection
+        // HACK try to use the inliners as final_chosen_set to produce more point clouds
+        #if 0
         final_chosen_set = consistent_set;
+        #else
+        final_chosen_set = inliers;
+        #endif
 
+        // Reset consistent_set so all images will be reconstructed in this iteration
         consistent_set.resize(num_images);
         for(int i=0;i<num_images;++i) consistent_set[i] = i;
       }
