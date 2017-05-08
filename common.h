@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <chrono>
 #include <iostream>
+#include <numeric>
 #include <fstream>
 #include <sstream>
 #include <vector>
