@@ -10,3 +10,6 @@
 [submodule "ImageDedup"]
 	path = ImageDedup
 	url = git@github.com:phg1024/ImageDedup.git
+[submodule "third_party/json"]
+	path = third_party/json
+	url = https://github.com/nlohmann/json.git
