@@ -228,6 +228,25 @@ target_link_libraries(mesh_matcher
                       ${MKLLIBS}
                       ${PhGLib})
 
+# Mesh Visualization tool
+add_executable(visualize_mesh visualize_mesh.cpp)
+target_link_libraries(visualize_mesh
+  meshvisualizer
+  meshvisualizer2
+  offscreenmeshvisualizer
+  multilinearmodel
+  basicmesh
+  ioutilities
+  tensor
+  aammodel
+  Qt5::Core
+  Qt5::Widgets
+  Qt5::OpenGL
+  Qt5::Test
+  ${MKLLIBS}
+  ${PhGLib}
+)
+
 add_subdirectory(AAM)
 add_subdirectory(ImageDedup)
 add_subdirectory(tests)

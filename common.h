@@ -6,6 +6,7 @@
 #include <iostream>
 #include <numeric>
 #include <fstream>
+#include <numeric>
 #include <sstream>
 #include <vector>
 #include <stdlib.h>

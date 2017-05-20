@@ -953,7 +953,7 @@ struct IdentityRegularizationTerm {
   bool operator()(const double *const *w, double *residual) const {
     const int params_length = 50;
     residual[0] = 0;
-    for(int i=0;i<params_length-1;++i) {
+    for(int i=0;i<params_length;++i) {
       residual[0] += w[0][i]*w[0][i];
     }
     residual[0] *= weight;

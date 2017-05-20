@@ -4,21 +4,18 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/euler_angles.hpp>
 
-namespace {
-  inline void encode_index(int idx, unsigned char& r, unsigned char& g, unsigned char& b) {
-    r = static_cast<unsigned char>(idx & 0xff); idx >>= 8;
-    g = static_cast<unsigned char>(idx & 0xff); idx >>= 8;
-    b = static_cast<unsigned char>(idx & 0xff);
-  }
-
-  inline int decode_index(unsigned char r, unsigned char g, unsigned char b, int& idx) {
-    idx = b; idx <<= 8; idx |= g; idx <<= 8; idx |= r;
-    return idx;
-  }
-}
-
 void OffscreenMeshVisualizer::SetupViewing(const MVPMode& mvp_mode) const {
   switch(mvp_mode) {
+    case OrthoNormalExtended: {
+      glMatrixMode(GL_PROJECTION);
+      glLoadIdentity();
+      gluOrtho2D(-1.0, 1.0, -1.0, 1.0);
+      glViewport(0, 0, width, height);
+
+      glMatrixMode(GL_MODELVIEW);
+      glLoadIdentity();
+      break;
+    }
     case OrthoNormal: {
       glMatrixMode(GL_PROJECTION);
       glLoadIdentity();
@@ -195,9 +192,9 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
         auto f = mesh.face_texture(face_i);
         auto t0 = mesh.texture_coords(f[0]), t1 = mesh.texture_coords(f[1]), t2 = mesh.texture_coords(f[2]);
         unsigned char r, g, b;
-        encode_index(face_i, r, g, b);
+        ColorEncoding::encode_index(face_i, r, g, b);
         int tmp_idx;
-        assert(decode_index(r, g, b, tmp_idx) == face_i);
+        assert(ColorEncoding::decode_index(r, g, b, tmp_idx) == face_i);
         glBegin(GL_TRIANGLES);
 
 #if DEBUG_GEN
@@ -218,6 +215,30 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
       //PhGUtils::message("done.");
       break;
     }
+    case BarycentricCoordinates: {
+      SetupViewing(mode);
+      //PhGUtils::message("rendering texture.");
+
+      glShadeModel(GL_SMOOTH);
+
+      for(int face_i : faces_to_render) {
+        auto f = mesh.face(face_i);
+        auto v0 = mesh.vertex(f[0]), v1 = mesh.vertex(f[1]), v2 = mesh.vertex(f[2]);
+
+        glBegin(GL_TRIANGLES);
+
+        glColor4f(1, 0, 0, 1);
+        glVertex3f(v0[0], v0[1], v0[2]);
+        glColor4f(0, 1, 0, 1);
+        glVertex3f(v1[0], v1[1], v1[2]);
+        glColor4f(0, 0, 1, 1);
+        glVertex3f(v2[0], v2[1], v2[2]);
+
+        glEnd();
+      }
+      //PhGUtils::message("done.");
+      break;
+    }
     case Mesh: {
       SetupViewing(mode);
       // draw the triangles
@@ -225,14 +246,12 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
 
       //PhGUtils::message("rendering mesh.");
       for(int face_i : faces_to_render) {
-        auto normal_i = mesh.normal(face_i);
         auto f = mesh.face(face_i);
         auto v0 = mesh.vertex(f[0]), v1 = mesh.vertex(f[1]), v2 = mesh.vertex(f[2]);
-        auto n = mesh.normal(face_i);
         unsigned char r, g, b;
-        encode_index(face_i, r, g, b);
+        ColorEncoding::encode_index(face_i, r, g, b);
         int tmp_idx;
-        assert(decode_index(r, g, b, tmp_idx) == face_i);
+        assert(ColorEncoding::decode_index(r, g, b, tmp_idx) == face_i);
 
         if(index_encoded)
           glShadeModel(GL_FLAT);
@@ -241,7 +260,10 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
 
         glBegin(GL_TRIANGLES);
 
-        glNormal3f(n[0], n[1], n[2]);
+        if(!index_encoded) {
+          auto n = mesh.normal(face_i);
+          glNormal3f(n[0], n[1], n[2]);
+        }
 
         if(index_encoded)
           glColor4ub(r, g, b, 255);
