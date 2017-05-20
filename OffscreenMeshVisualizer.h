@@ -13,6 +13,7 @@
 #include <QOffscreenSurface>
 
 #include <boost/timer/timer.hpp>
+#include "third_party/json/src/json.hpp"
 
 namespace ColorEncoding {
   inline void encode_index(int idx, unsigned char& r, unsigned char& g, unsigned char& b) {
