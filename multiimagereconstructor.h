@@ -503,7 +503,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
     aam.SetImages(images);
     aam.SetPoints(points);
     aam.Preprocess();
-    aam.SetErrorMetric(aam::AAMModel::FittingError);
+    aam.SetErrorMetric(aam::AAMModel::Hybrid);
 
     // For Debugging
     inliers = aam.FindInliers_Iterative();
@@ -967,9 +967,10 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
       if((iters_joint_optimization == num_iters_joint_optimization - 1) && (iters_main_loop == max_iters_main_loop)) {
         // Store the final selection
         // HACK try to use the inliners as final_chosen_set to produce more point clouds
-        #if 0
+        #if 1
         final_chosen_set = consistent_set;
         #else
+        // No good!
         final_chosen_set = inliers;
         #endif
 

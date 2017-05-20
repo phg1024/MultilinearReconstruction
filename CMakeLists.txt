@@ -210,6 +210,24 @@ target_link_libraries(MultiImageReconstruction_exp
 add_executable(MultilinearModelBuilder multilinearmodelbuilder.cpp)
 target_link_libraries(MultilinearModelBuilder multilinearmodel)
 
+# Mesh Matcher
+add_executable(mesh_matcher mesh_matcher.cpp)
+target_link_libraries(mesh_matcher
+                      meshvisualizer
+                      meshvisualizer2
+                      offscreenmeshvisualizer
+                      multilinearmodel
+                      basicmesh
+                      ioutilities
+                      tensor
+                      aammodel
+                      Qt5::Core
+                      Qt5::Widgets
+                      Qt5::OpenGL
+                      Qt5::Test
+                      ${MKLLIBS}
+                      ${PhGLib})
+
 add_subdirectory(AAM)
 add_subdirectory(ImageDedup)
 add_subdirectory(tests)
