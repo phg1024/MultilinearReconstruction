@@ -14,6 +14,7 @@
 
 #include <boost/timer/timer.hpp>
 #include "third_party/json/src/json.hpp"
+using json = nlohmann::json;
 
 namespace ColorEncoding {
   inline void encode_index(int idx, unsigned char& r, unsigned char& g, unsigned char& b) {
@@ -45,7 +46,13 @@ public:
     TexturedMesh
   };
   OffscreenMeshVisualizer(int width, int height)
-   : width(width), height(height), index_encoded(true), lighting_enabled(false) {}
+   : width(width), height(height), index_encoded(true), lighting_enabled(false) {
+    // Load rendering settings
+    {
+      ifstream fin("/home/phg/Data/Settings/mesh_vis.json");
+      fin >> rendering_settings;
+    }
+  }
 
   void BindMesh(const BasicMesh& in_mesh) {
     mesh = in_mesh;
@@ -106,6 +113,9 @@ private:
   mutable GLuint image_tex;
   QImage texture;
   mutable glm::dmat4 Mview;
+
+  json rendering_settings;
+  mutable vector<GLuint> enabled_lights;
 };
 
 

@@ -95,38 +95,85 @@ void OffscreenMeshVisualizer::CreateTexture() const {
 
 void OffscreenMeshVisualizer::EnableLighting() const
 {
-  GLfloat light_position[] = {10.0, 4.0, 10.0, 1.0};
-  GLfloat mat_specular[] = {0.5, 0.5, 0.5, 1.0};
-  GLfloat mat_diffuse[] = {0.375, 0.375, 0.375, 1.0};
-  GLfloat mat_shininess[] = {25.0};
-  GLfloat light_ambient[] = {0.05, 0.05, 0.05, 1.0};
-  GLfloat white_light[] = {1.0, 1.0, 1.0, 1.0};
-  GLfloat black_light[] = {0.5, 0.5, 0.5, 1.0};
+  enabled_lights.clear();
+
+  // Setup material
+  auto& mat_specular_json = rendering_settings["material"]["specular"];
+  GLfloat mat_specular[] = {
+    mat_specular_json[0],
+    mat_specular_json[1],
+    mat_specular_json[2],
+    mat_specular_json[3]
+  };
+
+  auto& mat_diffuse_json = rendering_settings["material"]["diffuse"];
+  GLfloat mat_diffuse[] = {
+    mat_diffuse_json[0],
+    mat_diffuse_json[1],
+    mat_diffuse_json[2],
+    mat_diffuse_json[3]
+  };
+
+  auto& mat_shininess_json = rendering_settings["material"]["shininess"];
+  GLfloat mat_shininess[] = {mat_shininess_json};
 
   glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, mat_specular);
   glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, mat_shininess);
   glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
 
-  glLightfv(GL_LIGHT0, GL_POSITION, light_position);
-  glLightfv(GL_LIGHT0, GL_DIFFUSE, white_light);
-  glLightfv(GL_LIGHT0, GL_SPECULAR, white_light);
-  glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);
+  // Setup Lights
+  auto setup_light = [&](json light_json) {
+    auto light_i = GL_LIGHT0 + enabled_lights.size();
 
-  light_position[0] = -10.0;
-  glLightfv(GL_LIGHT1, GL_POSITION, light_position);
-  glLightfv(GL_LIGHT1, GL_DIFFUSE, white_light);
-  glLightfv(GL_LIGHT1, GL_SPECULAR, white_light);
-  glLightfv(GL_LIGHT1, GL_AMBIENT, light_ambient);
+    GLfloat light_position[] = {
+      light_json["pos"][0],
+      light_json["pos"][1],
+      light_json["pos"][2],
+      light_json["pos"][3]
+    };
+    GLfloat light_ambient[] = {
+      light_json["ambient"][0],
+      light_json["ambient"][1],
+      light_json["ambient"][2],
+      light_json["ambient"][3]
+    };
+    GLfloat light_diffuse[] = {
+      light_json["diffuse"][0],
+      light_json["diffuse"][1],
+      light_json["diffuse"][2],
+      light_json["diffuse"][3]
+    };
+    GLfloat light_specular[] = {
+      light_json["specular"][0],
+      light_json["specular"][1],
+      light_json["specular"][2],
+      light_json["specular"][3]
+    };
+
+    glLightfv(light_i, GL_POSITION, light_position);
+    glLightfv(light_i, GL_DIFFUSE, light_diffuse);
+    glLightfv(light_i, GL_SPECULAR, light_specular);
+    glLightfv(light_i, GL_AMBIENT, light_ambient);
+
+    enabled_lights.push_back(light_i);
+  };
+
+  for(json::const_iterator it = rendering_settings["lights"].cbegin();
+      it != rendering_settings["lights"].cend();
+      ++it)
+  {
+    setup_light(*it);
+  }
 
   glEnable(GL_LIGHTING);
-  glEnable(GL_LIGHT0);
-  glEnable(GL_LIGHT1);
+  for(auto light_i : enabled_lights) glEnable(light_i);
 }
 
 void OffscreenMeshVisualizer::DisableLighting() const
 {
-  glDisable(GL_LIGHT0);
-  glDisable(GL_LIGHT1);
+  for(auto light_i : enabled_lights) glDisable(light_i);
+  enabled_lights.clear();
+
   glDisable(GL_LIGHTING);
 }
 
