@@ -54,6 +54,11 @@ public:
     }
   }
 
+  void LoadRenderingSettings(const string& filename) {
+    ifstream fin(filename);
+    fin >> rendering_settings;
+  }
+
   void BindMesh(const BasicMesh& in_mesh) {
     mesh = in_mesh;
   }
