@@ -152,6 +152,10 @@ public:
     enable_selection = false;
   }
 
+  void ApplyWeights() {
+    model.ApplyWeights(params_model.Wid, params_model.Wexp);    
+  }
+
 protected:
   void InitializeParameters(bool with_perturbation=false, double perturb_range=0.0);
 
