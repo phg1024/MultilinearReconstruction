@@ -344,6 +344,7 @@ private:
     ReconstructionParameters<Constraint> recon;
     OptimizationParameters opt;
     ReconstructionStats stats;
+    string img_filename;
   };
 
   // Input image points pairs
@@ -454,6 +455,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
   param_sets.resize(image_points_pairs.size());
   for(size_t i=0;i<param_sets.size();++i) {
     auto& params = param_sets[i];
+    params.img_filename = fs::path(image_filenames[i]).filename().string();
     params.indices = init_indices;
     params.mesh = template_mesh;
 
@@ -1125,7 +1127,9 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
     ofstream fout( (result_path / fs::path("selection.txt")).string() );
     for(int i=0;i<final_chosen_set.size();++i) {
       // The row indices in the settings file!
-      fout << final_chosen_set[i] << endl;
+      const int row_index = final_chosen_set[i];
+      const int L = param_sets[row_index].img_filename.size();
+      fout << param_sets[row_index].img_filename.substr(0, L-4) << endl;
     }
     fout.close();
   }
