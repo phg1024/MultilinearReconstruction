@@ -13,6 +13,7 @@
 
 vector<string> ReadFileByLine(const string &filename);
 vector<int> LoadIndices(const string &filename);
+vector<float> LoadFloats(const string &filename);
 
 vector<vector<int>> LoadContourIndices(const string& filename);
 
