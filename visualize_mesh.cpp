@@ -31,16 +31,43 @@
 
 #include "boost/filesystem/operations.hpp"
 #include "boost/filesystem/path.hpp"
+#include "boost/program_options.hpp"
 
 namespace fs = boost::filesystem;
+namespace po = boost::program_options;
 
 using namespace Eigen;
+
+po::variables_map parse_cli_args(int argc, char** argv) {
+  po::options_description desc("Options");
+  desc.add_options()
+    ("help", "Print help messages")
+    ("img", po::value<string>()->required(), "Background iamge.")
+    ("res", po::value<string>()->required(), "Reconstruction information.")
+    ("mesh", po::value<string>()->required(), "Mesh to render.")
+    ("texture", po::value<string>()->default_value(""), "Texture for the mesh.")
+    ("normals", po::value<string>()->default_value(""), "Customized normals for the mesh.")
+    ("settings", po::value<string>()->default_value("/home/phg/Data/Settings/mesh_vis.json"), "Rendering settings")
+    ("output", po::value<string>()->required(), "Output image file.");
+  po::variables_map vm;
+
+  try {
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::notify(vm);
+    return vm;
+  } catch(po::error& e) {
+    cerr << "Error: " << e.what() << endl;
+    cerr << desc << endl;
+    exit(1);
+  }
+}
 
 void VisualizeReconstructionResult(
   const string& img_filename,
   const string& res_filename,
   const string& mesh_filename,
   const string& output_image_filename,
+  const map<string, string>& extra_options,
   bool scale_output=true) {
 
   QImage img(img_filename.c_str());
@@ -68,17 +95,32 @@ void VisualizeReconstructionResult(
   visualizer.SetIndexEncoded(false);
   visualizer.SetEnableLighting(true);
 
+  if(extra_options.count("settings")) visualizer.LoadRenderingSettings(extra_options.at("settings"));
+  if(extra_options.count("texture")) visualizer.BindTexture(QImage(extra_options.at("texture").c_str()));
+  if(extra_options.count("normals")) {
+    visualizer.SetNormals(LoadFloats(extra_options.at("normals")));
+  }
+
   QImage output_img = visualizer.Render(true);
   output_img.save(output_image_filename.c_str());
 }
 
 int main(int argc, char** argv) {
   QApplication app(argc, argv);
+  auto vm = parse_cli_args(argc, argv);
   if(argc<5) {
     cout << "Usage: " << argv[0] << " img res mesh output" << endl;
     return 1;
   }
 
-  VisualizeReconstructionResult(argv[1], argv[2], argv[3], argv[4]);
+  VisualizeReconstructionResult(vm["img"].as<string>(),
+                                vm["res"].as<string>(),
+                                vm["mesh"].as<string>(),
+                                vm["output"].as<string>(),
+                                map<string, string>{
+                                  {"normals", vm["normals"].as<string>()},
+                                  {"texture", vm["texture"].as<string>()},
+                                  {"settings", vm["settings"].as<string>()}
+                                });
   return 0;
 }

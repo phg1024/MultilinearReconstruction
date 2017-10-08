@@ -78,6 +78,9 @@ public:
   void SetFacesToRender(const vector<int>& indices) {
     faces_to_render = indices;
   }
+  void SetNormals(const vector<float>& ns) {
+    normals = ns;
+  }
 
   void SetRenderMode(RenderMode mode_in) {
     render_mode = mode_in;
@@ -110,6 +113,7 @@ private:
   CameraParameters camera_params;
 
   mutable vector<int> faces_to_render;
+  mutable vector<float> normals;
 
   bool index_encoded;
   bool lighting_enabled;
