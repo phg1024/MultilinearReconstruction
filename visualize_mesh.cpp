@@ -45,8 +45,10 @@ po::variables_map parse_cli_args(int argc, char** argv) {
     ("img", po::value<string>()->required(), "Background iamge.")
     ("res", po::value<string>()->required(), "Reconstruction information.")
     ("mesh", po::value<string>()->required(), "Mesh to render.")
-    ("texture", po::value<string>()->default_value(""), "Texture for the mesh.")
-    ("normals", po::value<string>()->default_value(""), "Customized normals for the mesh.")
+    ("faces", po::value<string>(), "Faces to render")
+    ("texture", po::value<string>(), "Texture for the mesh.")
+    ("normals", po::value<string>(), "Customized normals for the mesh.")
+    ("no_subdivision", "Perform subdivision for mesh")
     ("settings", po::value<string>()->default_value("/home/phg/Data/Settings/mesh_vis.json"), "Rendering settings")
     ("output", po::value<string>()->required(), "Output image file.");
   po::variables_map vm;
@@ -67,6 +69,7 @@ void VisualizeReconstructionResult(
   const string& res_filename,
   const string& mesh_filename,
   const string& output_image_filename,
+  bool no_subdivision,
   const map<string, string>& extra_options,
   bool scale_output=true) {
 
@@ -100,6 +103,30 @@ void VisualizeReconstructionResult(
   if(extra_options.count("normals")) {
     visualizer.SetNormals(LoadFloats(extra_options.at("normals")));
   }
+  if(extra_options.count("faces")) {
+    auto hair_region_indices_quad = LoadIndices(extra_options.at("faces"));
+    vector<int> hair_region_indices;
+    // @HACK each quad face is triangulated, so the indices change from i to [2*i, 2*i+1]
+    for(auto fidx : hair_region_indices_quad) {
+      hair_region_indices.push_back(fidx*2);
+      hair_region_indices.push_back(fidx*2+1);
+    }
+    // HACK: each valid face i becomes [4i, 4i+1, 4i+2, 4i+3] after the each
+    // subdivision. See BasicMesh::Subdivide for details
+    const int max_subdivisions = no_subdivision?0:1;
+    for(int i=0;i<max_subdivisions;++i) {
+      vector<int> hair_region_indices_new;
+      for(auto fidx : hair_region_indices) {
+        int fidx_base = fidx*4;
+        hair_region_indices_new.push_back(fidx_base);
+        hair_region_indices_new.push_back(fidx_base+1);
+        hair_region_indices_new.push_back(fidx_base+2);
+        hair_region_indices_new.push_back(fidx_base+3);
+      }
+      hair_region_indices = hair_region_indices_new;
+    }
+    visualizer.SetFacesToRender(hair_region_indices);
+  }
 
   QImage output_img = visualizer.Render(true);
   output_img.save(output_image_filename.c_str());
@@ -113,14 +140,17 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  map<string, string> extra_options;
+  if(vm.count("normals")) extra_options.insert({"normals", vm["normals"].as<string>()});
+  if(vm.count("texture")) extra_options.insert({"texture", vm["texture"].as<string>()});
+  if(vm.count("settings")) extra_options.insert({"settings", vm["settings"].as<string>()});
+  if(vm.count("faces")) extra_options.insert({"faces", vm["faces"].as<string>()});
+
   VisualizeReconstructionResult(vm["img"].as<string>(),
                                 vm["res"].as<string>(),
                                 vm["mesh"].as<string>(),
                                 vm["output"].as<string>(),
-                                map<string, string>{
-                                  {"normals", vm["normals"].as<string>()},
-                                  {"texture", vm["texture"].as<string>()},
-                                  {"settings", vm["settings"].as<string>()}
-                                });
+                                vm.count("no_subdivision"),
+                                extra_options);
   return 0;
 }
