@@ -44,11 +44,13 @@ po::variables_map parse_cli_args(int argc, char** argv) {
     ("help", "Print help messages")
     ("img", po::value<string>()->required(), "Background iamge.")
     ("res", po::value<string>()->required(), "Reconstruction information.")
-    ("mesh", po::value<string>()->required(), "Mesh to render.")
+    ("mesh", po::value<string>()->default_value(""), "Mesh to render.")
+    ("init_bs_path", po::value<string>()->default_value(""), "Initial blendshapes path.")
     ("faces", po::value<string>(), "Faces to render")
     ("texture", po::value<string>(), "Texture for the mesh.")
     ("normals", po::value<string>(), "Customized normals for the mesh.")
     ("no_subdivision", "Perform subdivision for mesh")
+    ("init", "Is the initial multi-recon")
     ("settings", po::value<string>()->default_value("/home/phg/Data/Settings/mesh_vis.json"), "Rendering settings")
     ("output", po::value<string>()->required(), "Output image file.");
   po::variables_map vm;
@@ -68,6 +70,7 @@ void VisualizeReconstructionResult(
   const string& img_filename,
   const string& res_filename,
   const string& mesh_filename,
+  const string& init_bs_path,
   const string& output_image_filename,
   bool no_subdivision,
   const map<string, string>& extra_options,
@@ -83,8 +86,35 @@ void VisualizeReconstructionResult(
     imgh *= scale;
   }
 
-  BasicMesh mesh(mesh_filename);
   auto recon_results = LoadReconstructionResult(res_filename);
+
+  BasicMesh mesh;
+  if(!mesh_filename.empty()) {
+    cout << "Using mesh directly ..." << endl;
+    mesh.LoadOBJMesh(mesh_filename);
+    mesh.ComputeNormals();
+  } else {
+    const int num_blendshapes = 46;
+    vector<BasicMesh> blendshapes(num_blendshapes+1);
+  #pragma omp parallel for
+    for(int i=0;i<=num_blendshapes;++i) {
+      if(extra_options.count("init"))
+        blendshapes[i].LoadOBJMesh( init_bs_path + "/" + "Binit_" + to_string(i) + ".obj" );
+      else
+        blendshapes[i].LoadOBJMesh( init_bs_path + "/" + "B_" + to_string(i) + ".obj" );
+      blendshapes[i].ComputeNormals();
+    }
+
+    mesh = blendshapes[0];
+
+    MatrixX3d verts0 = blendshapes[0].vertices();
+    MatrixX3d verts = verts0;
+    for(int j=1;j<=num_blendshapes;++j) {
+      verts += (blendshapes[j].vertices() - verts0) * recon_results.params_model.Wexp_FACS(j);
+    }
+    mesh.vertices() = verts;
+    mesh.ComputeNormals();
+  }
 
   OffscreenMeshVisualizer visualizer(imgw, imgh);
 
@@ -145,10 +175,12 @@ int main(int argc, char** argv) {
   if(vm.count("texture")) extra_options.insert({"texture", vm["texture"].as<string>()});
   if(vm.count("settings")) extra_options.insert({"settings", vm["settings"].as<string>()});
   if(vm.count("faces")) extra_options.insert({"faces", vm["faces"].as<string>()});
+  if(vm.count("init")) extra_options.insert({"init", "true"});
 
   VisualizeReconstructionResult(vm["img"].as<string>(),
                                 vm["res"].as<string>(),
                                 vm["mesh"].as<string>(),
+                                vm["init_bs_path"].as<string>(),
                                 vm["output"].as<string>(),
                                 vm.count("no_subdivision"),
                                 extra_options);

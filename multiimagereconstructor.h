@@ -313,6 +313,9 @@ protected:
     }
     OffscreenMeshVisualizer visualizer(imgw, imgh);
 
+    // Always compute normal
+    param_sets[i].mesh.ComputeNormals();
+
     visualizer.SetMVPMode(OffscreenMeshVisualizer::CamPerspective);
     visualizer.SetRenderMode(OffscreenMeshVisualizer::MeshAndImage);
     visualizer.BindMesh(param_sets[i].mesh);

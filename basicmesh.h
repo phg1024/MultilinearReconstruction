@@ -102,7 +102,9 @@ public:
     MatrixXd P(npoints, 3);
     for (size_t i = 0, offset=0; i < validfaces.size(); ++i) {
       int fidx = validfaces[i];
+#if 0
       int v1 = faces(fidx, 0), v2 = faces(fidx, 1), v3 = faces(fidx, 2);
+      // @deprecated: this generates uneven sampling
       double x1 = verts(v1, 0), x2 = verts(v2, 0), x3 = verts(v3, 0);
       double y1 = verts(v1, 1), y2 = verts(v2, 1), y3 = verts(v3, 1);
       double z1 = verts(v1, 2), z2 = verts(v2, 2), z3 = verts(v3, 2);
@@ -118,6 +120,24 @@ public:
         double zij = z1*alpha + z2*beta + z3*gamma;
         P.row(offset) = Vector3d(xij, yij, zij); ++offset;
       }
+#else
+      Vector3d v0 = vertex(faces(fidx, 0));
+      Vector3d v1 = vertex(faces(fidx, 1));
+      Vector3d v2 = vertex(faces(fidx, 2));
+      Vector3d v0v1 = v1 - v0;
+      Vector3d v0v2 = v2 - v0;
+
+      for(int j=0;j<points_per_face;++j) {
+        Vector3d v;
+        while(true) {
+          double alpha = rand() / (double) RAND_MAX;
+          double beta = rand() / (double) RAND_MAX;
+          v = v0 + alpha * v0v1 + beta * v0v2;
+          if (v.dot(v0v1) <= v0v1.norm() && v.dot(v0v2) <= v0v2.norm()) break;
+        }
+        P.row(offset) = v; ++offset;
+      }
+#endif
     }
     cout << "points sampled." << endl;
     return P;
