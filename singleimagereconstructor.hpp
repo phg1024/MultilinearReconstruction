@@ -19,6 +19,7 @@ using namespace Eigen;
 #include "common.h"
 #include "constraints.h"
 #include "costfunctions.h"
+#include "meshvisualizer.h"
 #include "multilinearmodel.h"
 #include "parameters.h"
 #include "statsutils.h"
@@ -153,7 +154,7 @@ public:
   }
 
   void ApplyWeights() {
-    model.ApplyWeights(params_model.Wid, params_model.Wexp);    
+    model.ApplyWeights(params_model.Wid, params_model.Wexp);
   }
 
 protected:

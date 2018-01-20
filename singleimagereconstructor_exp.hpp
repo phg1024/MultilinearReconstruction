@@ -848,7 +848,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForPose(int iteration) {
     // Add a regularization term
     ceres::CostFunction *reg_cost_function =
       new ceres::NumericDiffCostFunction<PoseRegularizationTerm, ceres::CENTRAL, 1, 3>(
-        new PoseRegularizationTerm(1.0)
+        new PoseRegularizationTerm(0.0)
       );
     problem.AddResidualBlock(reg_cost_function, NULL, params.data());
 #endif

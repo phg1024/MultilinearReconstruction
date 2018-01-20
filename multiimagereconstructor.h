@@ -321,6 +321,7 @@ protected:
     visualizer.SetMeshRotationTranslation(param_sets[i].model.R, param_sets[i].model.T);
     visualizer.SetIndexEncoded(false);
     visualizer.SetEnableLighting(true);
+    visualizer.LoadRenderingSettings("/home/phg/Data/Settings/blendshape_vis_ao.json");
 
     QImage img = visualizer.Render(true);
     fs::path image_path = fs::path(image_filenames[i]);
