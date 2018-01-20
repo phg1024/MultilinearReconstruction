@@ -313,6 +313,9 @@ protected:
     }
     OffscreenMeshVisualizer visualizer(imgw, imgh);
 
+    // Always compute normal
+    param_sets[i].mesh.ComputeNormals();
+
     visualizer.SetMVPMode(OffscreenMeshVisualizer::CamPerspective);
     visualizer.SetRenderMode(OffscreenMeshVisualizer::MeshAndImage);
     visualizer.BindMesh(param_sets[i].mesh);
@@ -321,10 +324,11 @@ protected:
     visualizer.SetMeshRotationTranslation(param_sets[i].model.R, param_sets[i].model.T);
     visualizer.SetIndexEncoded(false);
     visualizer.SetEnableLighting(true);
+    visualizer.LoadRenderingSettings("/home/phg/Data/Settings/blendshape_vis_ao.json");
 
     QImage img = visualizer.Render(true);
     fs::path image_path = fs::path(image_filenames[i]);
-    img.save((folder / fs::path(image_path.stem().string() + ".jpg")).string().c_str());
+    img.save((folder / fs::path(image_path.stem().string() + ".png")).string().c_str());
     #endif
   }
 
@@ -344,6 +348,7 @@ private:
     ReconstructionParameters<Constraint> recon;
     OptimizationParameters opt;
     ReconstructionStats stats;
+    string img_filename;
   };
 
   // Input image points pairs
@@ -454,6 +459,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
   param_sets.resize(image_points_pairs.size());
   for(size_t i=0;i<param_sets.size();++i) {
     auto& params = param_sets[i];
+    params.img_filename = fs::path(image_filenames[i]).filename().string();
     params.indices = init_indices;
     params.mesh = template_mesh;
 
@@ -565,6 +571,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
       // Store results
       auto tm = single_recon.GetGeometry();
       param_sets[i].mesh.UpdateVertices(tm);
+      param_sets[i].mesh.ComputeNormals();
       param_sets[i].model = single_recon.GetModelParameters();
       param_sets[i].indices = single_recon.GetIndices();
       param_sets[i].cam = single_recon.GetCameraParameters();
@@ -991,10 +998,9 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
         single_recon.SetInitialParameters(param_sets[i].model, param_sets[i].cam);
         single_recon.SetOptimizationMode(
           static_cast<typename SingleImageReconstructor<Constraint>::OptimizationMode>(
-              SingleImageReconstructor<Constraint>::Pose
+            SingleImageReconstructor<Constraint>::Pose
             | SingleImageReconstructor<Constraint>::Expression
             | SingleImageReconstructor<Constraint>::FocalLength));
-
         {
           boost::timer::auto_cpu_timer t("Single image reconstruction finished in %w seconds.\n");
           single_recon.Reconstruct(opt_params);
@@ -1125,7 +1131,9 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
     ofstream fout( (result_path / fs::path("selection.txt")).string() );
     for(int i=0;i<final_chosen_set.size();++i) {
       // The row indices in the settings file!
-      fout << final_chosen_set[i] << endl;
+      const int row_index = final_chosen_set[i];
+      const int L = param_sets[row_index].img_filename.size();
+      fout << param_sets[row_index].img_filename.substr(0, L-4) << endl;
     }
     fout.close();
   }

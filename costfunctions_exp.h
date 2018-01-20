@@ -583,6 +583,61 @@ struct ExpressionCostFunction {
   CameraParameters cam_params;
 };
 
+struct ExpressionPoseCostFunction {
+  ExpressionPoseCostFunction(
+    const MultilinearModel& model,
+    const Constraint2D& constraint,
+    const CameraParameters& cam_params,
+    const MatrixXd &Uexp,
+    double weight, int idx
+  ) : model(model), constraint(constraint), cam_params(cam_params),
+  Uexp(Uexp), weight(weight), idx(idx) {
+  }
+
+  bool operator()(const double *const *params, double *residual) const {
+    const double* pose_params = params[0] + idx * 6;
+    // First 3, rotation
+    glm::dmat4 Rmat_i = glm::eulerAngleYXZ(pose_params[0],
+                                           pose_params[1],
+                                           pose_params[2]);
+    // Last 3, translation
+    glm::dmat4 Tmat_i = glm::translate(glm::dmat4(1.0),
+                                       glm::dvec3(pose_params[3],
+                                                  pose_params[4],
+                                                  pose_params[5]));
+    glm::dmat4 Mview_i = Tmat_i * Rmat_i;
+
+#if 0
+    VectorXd wexp_vec = Map<const VectorXd>(wexp[0], params_length).eval();
+#else
+    const int params_length = 47;
+    VectorXd wexp_vec(params_length);
+    wexp_vec.bottomRows(params_length-1) = Map<const VectorXd>(params[1] + idx * 46, params_length - 1).eval();
+    wexp_vec[0] = 1.0 - wexp_vec.bottomRows(params_length-1).sum();
+#endif
+    VectorXd weights = (wexp_vec.transpose() * Uexp).eval();
+
+    model.UpdateTMWithTM0(weights);
+
+    auto tm = model.GetTM();
+
+    // Project the point to image plane
+    glm::dvec3 p(tm[0], tm[1], tm[2]);
+    glm::dvec3 q = ProjectPoint(p, Mview_i, cam_params);
+    // Compute residual
+    residual[0] =
+      l2_norm(glm::dvec2(q.x, q.y), constraint.data) * constraint.weight * weight;
+    return true;
+  }
+
+  mutable MultilinearModel model;
+  Constraint2D constraint;
+  CameraParameters cam_params;
+  const MatrixXd &Uexp;
+  double weight;
+  int idx;
+};
+
 struct ExpressionCostFunction_analytic : public ceres::CostFunction {
   ExpressionCostFunction_analytic(const MultilinearModel &model,
                                   const Constraint2D &constraint,
@@ -975,6 +1030,26 @@ struct IdentityRegularizationTerm {
   }
 
   double weight;
+};
+
+struct SmoothnessCostFunction {
+  SmoothnessCostFunction(double weight, int params_length, int num_terms)
+   : weight(weight), params_length(params_length), num_terms(num_terms) {}
+  bool operator()(const double* const *w, double *residual) const {
+    for(int i=0;i<num_terms;++i) {
+      VectorXd v1(params_length), v2(params_length);
+      v1 = Map<const VectorXd>(w[0] + i * params_length, params_length).eval();
+      v2 = Map<const VectorXd>(w[0] + (i+1) * params_length, params_length).eval();
+
+      residual[i] = (v1 - v2).norm() * weight;
+    }
+
+    return true;
+  }
+
+  double weight;
+  int params_length;
+  int num_terms;
 };
 
 #endif // COSTFUNCTIONS_H

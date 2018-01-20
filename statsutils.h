@@ -204,7 +204,7 @@ static vector<int> FindConsistentSet(const MatrixXd& x, double h, int k,
   return consistent_set;
 }
 
-cv::Mat MeanShiftSegmentation(const cv::Mat& x, double hs, double hr, double th) {
+static cv::Mat MeanShiftSegmentation(const cv::Mat& x, double hs, double hr, double th) {
   cout << "Mean shift segmentation." << endl;
   int height = x.rows, width = x.cols;
   bool done = false;

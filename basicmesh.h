@@ -10,6 +10,8 @@
 #include <eigen3/Eigen/Dense>
 #include "common.h"
 
+#include <random>
+
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
 typedef OpenMesh::TriMesh_ArrayKernelT<>  HalfEdgeMesh;
@@ -74,6 +76,7 @@ public:
     }
     return v;
   }
+  
   template <typename Pred>
   vector<int> filterVertices(Pred p) {
     vector<int> v;
@@ -84,6 +87,7 @@ public:
     }
     return v;
   }
+
   MatrixX3d samplePoints(int points_per_face, double zcutoff) const {
     int npoints = 0;
     vector<int> validfaces;
@@ -98,10 +102,23 @@ public:
         validfaces.push_back(i);
       }
     }
+
+    return samplePoints(points_per_face, set<int>(validfaces.begin(), validfaces.end()));
+  }
+
+  MatrixX3d samplePoints(int points_per_face, const set<int>& faces_to_sample) const {
+    int npoints = faces_to_sample.size() * points_per_face;
     cout << "npoints = " << npoints << endl;
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dis(0, 1);
+
+    vector<int> validfaces(faces_to_sample.begin(), faces_to_sample.end());
     MatrixXd P(npoints, 3);
     for (size_t i = 0, offset=0; i < validfaces.size(); ++i) {
       int fidx = validfaces[i];
+#if 0
       int v1 = faces(fidx, 0), v2 = faces(fidx, 1), v3 = faces(fidx, 2);
       double x1 = verts(v1, 0), x2 = verts(v2, 0), x3 = verts(v3, 0);
       double y1 = verts(v1, 1), y2 = verts(v2, 1), y3 = verts(v3, 1);
@@ -118,6 +135,27 @@ public:
         double zij = z1*alpha + z2*beta + z3*gamma;
         P.row(offset) = Vector3d(xij, yij, zij); ++offset;
       }
+#else
+      Vector3d v0 = vertex(faces(fidx, 0));
+      Vector3d v1 = vertex(faces(fidx, 1));
+      Vector3d v2 = vertex(faces(fidx, 2));
+      Vector3d v0v1 = v1 - v0;
+      Vector3d v0v2 = v2 - v0;
+
+      for(int j=0;j<points_per_face;++j) {
+        Vector3d v;
+        while(true) {
+          double alpha = dis(gen);
+          double beta = dis(gen);
+          v = alpha * v0v1 + beta * v0v2;
+          if (v.dot(v0v1) <= v0v1.norm() && v.dot(v0v2) <= v0v2.norm()) {
+            v = v + v0;
+            break;
+          }
+        }
+        P.row(offset) = v; ++offset;
+      }
+#endif
     }
     cout << "points sampled." << endl;
     return P;
