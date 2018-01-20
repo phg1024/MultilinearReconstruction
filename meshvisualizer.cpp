@@ -5,7 +5,7 @@
 
 MeshVisualizer::MeshVisualizer(const string &title, const BasicMesh &mesh)
   : QGLWidget(QGLFormat(QGL::SampleBuffers | QGL::AlphaChannel | QGL::DepthBuffer)),
-    mesh(mesh), image_tex(-1),
+    mesh(mesh), image_tex(-1), texture_tex(-1),
     use_external_rotation_translation(false),
     rot_x(0.0), rot_y(0.0), face_alpha(0.75),
     draw_faces(true), draw_edges(false), draw_points(false),
@@ -22,27 +22,28 @@ void MeshVisualizer::initializeGL() {
   glEnable(GL_TEXTURE_2D);
 
   if(!image.isNull()) {
-    CreateTexture();
+    CreateTexture(image, image_tex);
+    CreateTexture(texture_img, texture_tex);
   }
 }
 
-void MeshVisualizer::CreateTexture() {
+void MeshVisualizer::CreateTexture(const QImage& img, GLuint& tex_id) {
   cout << "Creating opengl texture ..." << endl;
 #if 1
-  if( image_tex >= 0 )
-    glDeleteTextures(1, &image_tex);
+  if( tex_id >= 0 )
+    glDeleteTextures(1, &tex_id);
 
   glEnable(GL_TEXTURE_2D);
-  glGenTextures(1, &image_tex);
-  glBindTexture(GL_TEXTURE_2D, image_tex);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width(), image.height(), 0, GL_RGBA,
-               GL_UNSIGNED_BYTE, image.bits());
+  glGenTextures(1, &tex_id);
+  glBindTexture(GL_TEXTURE_2D, tex_id);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, img.width(), img.height(), 0, GL_RGBA,
+               GL_UNSIGNED_BYTE, img.bits());
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 #else
   image_tex = bindTexture(pixmap);
 #endif
-  cout << "texture id = " << image_tex << endl;
+  cout << "texture id = " << tex_id << endl;
   cout << "done." << endl;
 }
 
@@ -167,6 +168,9 @@ void MeshVisualizer::paintGL() {
       glEnable(GL_CULL_FACE);
       glCullFace(GL_BACK);
 
+      bool use_texture = texture_tex != -1;
+      if (use_texture) face_alpha = 1.0;
+
       /// Draw faces
       glColor4d(.75, .75, .75, face_alpha);
       GLfloat mat_diffuse[] = {0.5, 0.5, 0.5, static_cast<float>(face_alpha)};
@@ -175,6 +179,12 @@ void MeshVisualizer::paintGL() {
       glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
       glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, mat_shininess);
       glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, mat_specular);
+
+      if (use_texture) {
+          glEnable(GL_TEXTURE_2D);
+          glBindTexture(GL_TEXTURE_2D, texture_tex);
+          glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+      }
 
       glBegin(GL_TRIANGLES);
       for (int i = 0; i < mesh.NumFaces(); ++i) {
@@ -185,6 +195,7 @@ void MeshVisualizer::paintGL() {
         auto n0 = mesh.vertex_normal(face_i[0]);
         auto n1 = mesh.vertex_normal(face_i[1]);
         auto n2 = mesh.vertex_normal(face_i[2]);
+        auto tf = mesh.face_texture(i);
 
         auto set_diffuse_color_by_normal = [=](Vector3d n0) {
           glm::dvec4 n = glm::transpose(glm::inverse(rotation_matrix)) * glm::dvec4(n0[0], n0[1], n0[2], 1.0);
@@ -201,16 +212,32 @@ void MeshVisualizer::paintGL() {
         };
 
         //set_diffuse_color_by_normal(n0);
+        if(use_texture) {
+            auto t = mesh.texture_coords(tf[0]);
+            glTexCoord2f(t[0], t[1]);
+        }
         glNormal3dv(n0.data());glVertex3dv(v0.data());
 
         //set_diffuse_color_by_normal(n1);
+        if(use_texture) {
+            auto t = mesh.texture_coords(tf[1]);
+            glTexCoord2f(t[0], t[1]);
+        }
         glNormal3dv(n1.data());glVertex3dv(v1.data());
 
         //set_diffuse_color_by_normal(n2);
+        if(use_texture) {
+            auto t = mesh.texture_coords(tf[2]);
+            glTexCoord2f(t[0], t[1]);
+        }
         glNormal3dv(n2.data());glVertex3dv(v2.data());
       }
       glEnd();
       glDisable(GL_CULL_FACE);
+
+      if (use_texture) {
+        glDisable(GL_TEXTURE_2D);
+      }
     }
 
     if( draw_edges ) {
@@ -383,7 +410,12 @@ void MeshVisualizer::BindConstraints(const vector<Constraint2D> &constraints_in)
 
 void MeshVisualizer::BindImage(const QImage& img) {
   image = convertToGLFormat(img);
-  CreateTexture();
+  CreateTexture(image, image_tex);
+}
+
+void MeshVisualizer::BindTexture(const QImage& teximg) {
+  texture_img = convertToGLFormat(teximg);
+  CreateTexture(texture_img, texture_tex);
 }
 
 void MeshVisualizer::BindLandmarks(const vector<int> &landmarks_in) {
@@ -464,4 +496,9 @@ void MeshVisualizer::keyPressEvent(QKeyEvent *event) {
 void MeshVisualizer::BindUpdatedLandmarks(
   const vector<int> &updated_landmarks_in) {
   updated_landmarks = updated_landmarks_in;
+}
+
+void MeshVisualizer::BindMesh(const BasicMesh &mesh_in)
+{
+    mesh = mesh_in;
 }

@@ -14,6 +14,14 @@ class MeshVisualizer : public QGLWidget
 public:
   MeshVisualizer(const string& title, const BasicMesh& mesh);
 
+  virtual QSize sizeHint() const {
+    return QSize(512, 512);
+  }
+
+  virtual QSize minimumSizeHint() const {
+    return QSize(512, 512);
+  }
+
 signals:
 
 public slots:
@@ -26,7 +34,9 @@ public slots:
 
   void BindConstraints(const vector<Constraint2D>& constraints_in);
   void BindImage(const QImage& img);
+  void BindTexture(const QImage& img);
   void BindLandmarks(const vector<int>& landmarks_in);
+  void BindMesh(const BasicMesh& mesh);
   void BindUpdatedLandmarks(const vector<int>& updated_landmarks_in);
 
   void SetMeshRotationTranslation(const Vector3d& R, const Vector3d& T);
@@ -39,15 +49,15 @@ public slots:
   }
 
 protected:
-  void CreateTexture();
+  void CreateTexture(const QImage& img, GLuint& tex_id);
 
   void keyPressEvent(QKeyEvent* event);
 
 private:
   BasicMesh mesh;
   vector<Constraint2D> constraints;
-  QImage image;
-  GLuint image_tex;
+  QImage image, texture_img;
+  GLuint image_tex, texture_tex;
 
   vector<int> landmarks;
   vector<int> updated_landmarks;
