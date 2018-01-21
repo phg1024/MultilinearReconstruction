@@ -186,8 +186,13 @@ void MeshVisualizer::paintGL() {
           glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
       }
 
+      if(valid_triangles.empty()) {
+          valid_triangles.resize(mesh.NumFaces());
+          std::iota(valid_triangles.begin(), valid_triangles.end(), 0);
+      }
+
       glBegin(GL_TRIANGLES);
-      for (int i = 0; i < mesh.NumFaces(); ++i) {
+      for (auto i : valid_triangles) {
         auto face_i = mesh.face(i);
         auto v0 = mesh.vertex(face_i[0]);
         auto v1 = mesh.vertex(face_i[1]);
@@ -429,7 +434,12 @@ void MeshVisualizer::SetMeshRotationTranslation(const Vector3d &R,
 }
 
 void MeshVisualizer::SetCameraParameters(const CameraParameters &cam_params) {
-  camera_params = cam_params;
+    camera_params = cam_params;
+}
+
+void MeshVisualizer::SetFacesToRender(const vector<int> &valid_triangles_in)
+{
+    valid_triangles = valid_triangles_in;
 }
 
 void MeshVisualizer::keyPressEvent(QKeyEvent *event) {

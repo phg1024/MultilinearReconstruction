@@ -15,11 +15,11 @@ public:
   MeshVisualizer(const string& title, const BasicMesh& mesh);
 
   virtual QSize sizeHint() const {
-    return QSize(512, 512);
+    return QSize(350, 350);
   }
 
   virtual QSize minimumSizeHint() const {
-    return QSize(512, 512);
+    return QSize(350, 350);
   }
 
 signals:
@@ -41,6 +41,7 @@ public slots:
 
   void SetMeshRotationTranslation(const Vector3d& R, const Vector3d& T);
   void SetCameraParameters(const CameraParameters& cam_params);
+  void SetFacesToRender(const vector<int>& valid_triangles);
 
   void SetRotationMatrixTranslationVector(const glm::dmat4& R, const glm::dvec3& T) {
     use_external_rotation_translation = true;
@@ -61,6 +62,7 @@ private:
 
   vector<int> landmarks;
   vector<int> updated_landmarks;
+  vector<int> valid_triangles;
 
   Vector3d mesh_rotation, mesh_translation;
   CameraParameters camera_params;
