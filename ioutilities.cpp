@@ -12,7 +12,18 @@ vector<string> ReadFileByLine(const string &filename) {
   return lines;
 }
 
+template <typename T, typename Parser>
+vector<T> LoadAsVector(const string& filename, Parser parser) {
+  cout << "Reading " << filename << endl;
+  vector<string> lines = ReadFileByLine(filename);
+  vector<T> items(lines.size());
+  std::transform(lines.begin(), lines.end(), items.begin(), parser);
+  cout << items.size() << " items loaded." << endl;
+  return items;
+}
+
 vector<int> LoadIndices(const string &filename) {
+#if 0
   cout << "Reading indices from " << filename << endl;
   vector<string> lines = ReadFileByLine(filename);
   vector<int> indices(lines.size());
@@ -22,6 +33,19 @@ vector<int> LoadIndices(const string &filename) {
                  });
   cout << indices.size() << " landmarks loaded." << endl;
   return indices;
+#else
+  auto parser = [](const string &s) {
+    return std::stoi(s);
+  };
+  return LoadAsVector<int, decltype(parser)>(filename, parser);
+#endif
+}
+
+vector<float> LoadFloats(const string& filename) {
+  auto parser = [](const string& s) {
+    return std::stof(s);
+  };
+  return LoadAsVector<float, decltype(parser)>(filename, parser);
 }
 
 vector<vector<int>> LoadContourIndices(const string& filename) {

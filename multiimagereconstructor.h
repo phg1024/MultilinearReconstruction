@@ -313,6 +313,9 @@ protected:
     }
     OffscreenMeshVisualizer visualizer(imgw, imgh);
 
+    // Always compute normal
+    param_sets[i].mesh.ComputeNormals();
+
     visualizer.SetMVPMode(OffscreenMeshVisualizer::CamPerspective);
     visualizer.SetRenderMode(OffscreenMeshVisualizer::MeshAndImage);
     visualizer.BindMesh(param_sets[i].mesh);
@@ -325,7 +328,7 @@ protected:
 
     QImage img = visualizer.Render(true);
     fs::path image_path = fs::path(image_filenames[i]);
-    img.save((folder / fs::path(image_path.stem().string() + ".jpg")).string().c_str());
+    img.save((folder / fs::path(image_path.stem().string() + ".png")).string().c_str());
     #endif
   }
 
@@ -568,6 +571,7 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
       // Store results
       auto tm = single_recon.GetGeometry();
       param_sets[i].mesh.UpdateVertices(tm);
+      param_sets[i].mesh.ComputeNormals();
       param_sets[i].model = single_recon.GetModelParameters();
       param_sets[i].indices = single_recon.GetIndices();
       param_sets[i].cam = single_recon.GetCameraParameters();
@@ -994,10 +998,9 @@ bool MultiImageReconstructor<Constraint>::Reconstruct() {
         single_recon.SetInitialParameters(param_sets[i].model, param_sets[i].cam);
         single_recon.SetOptimizationMode(
           static_cast<typename SingleImageReconstructor<Constraint>::OptimizationMode>(
-              SingleImageReconstructor<Constraint>::Pose
+            SingleImageReconstructor<Constraint>::Pose
             | SingleImageReconstructor<Constraint>::Expression
             | SingleImageReconstructor<Constraint>::FocalLength));
-
         {
           boost::timer::auto_cpu_timer t("Single image reconstruction finished in %w seconds.\n");
           single_recon.Reconstruct(opt_params);

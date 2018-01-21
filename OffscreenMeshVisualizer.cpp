@@ -361,6 +361,23 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
         glPopMatrix();
       }
 
+      bool has_texture = false;
+      if ( !texture.isNull() ) {
+        glEnable(GL_TEXTURE_2D);
+        glGenTextures(1, &image_tex);
+        glBindTexture(GL_TEXTURE_2D, image_tex);
+        // TODO need to address the RGBA/BGRA issue of the input texuture
+        // HACK Changed to BGRA for blendshape_driver
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texture.width(), texture.height(), 0, GL_BGRA,
+                     GL_UNSIGNED_BYTE, texture.bits());
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+        has_texture = true;
+      }
+
       // Draw the mesh
       SetupViewing(mode);
       // draw the triangles
@@ -369,6 +386,7 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
       glEnable(GL_CULL_FACE);
       glCullFace(GL_BACK);
 
+#if 0
       const double face_alpha = 1.0;
       glColor4d(.75, .75, .75, face_alpha);
       GLfloat mat_diffuse[] = {0.5, 0.5, 0.5, static_cast<float>(face_alpha)};
@@ -379,34 +397,87 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
       glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
       glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, mat_shininess);
       glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, mat_specular);
+#endif
+
+      bool use_customized_normals = !normals.empty();
+      bool use_ao = !ao.empty();
+      cout << "using ao: " << (use_ao?"yes":"no") << endl;
+      auto set_material_with_ao = [&](float ao_value) {
+        auto& mat_diffuse_json = rendering_settings["material"]["diffuse"];
+        GLfloat mat_diffuse[] = {
+          float(mat_diffuse_json[0]) * pow(ao_value, static_cast<double>(rendering_settings["ao_power"])),
+          float(mat_diffuse_json[1]) * pow(ao_value, static_cast<double>(rendering_settings["ao_power"])),
+          float(mat_diffuse_json[2]) * pow(ao_value, static_cast<double>(rendering_settings["ao_power"])),
+          float(mat_diffuse_json[3])
+        };
+        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
+      };
 
       for(int face_i : faces_to_render) {
         auto normal_i = mesh.normal(face_i);
         auto f = mesh.face(face_i);
         auto v0 = mesh.vertex(f[0]), v1 = mesh.vertex(f[1]), v2 = mesh.vertex(f[2]);
 
-        auto n0 = mesh.vertex_normal(f[0]);
-        auto n1 = mesh.vertex_normal(f[1]);
-        auto n2 = mesh.vertex_normal(f[2]);
+        Vector3d n0, n1, n2;
+        if(use_customized_normals) {
+          n0 = Vector3d(normals[f[0]*3], normals[f[0]*3+1], normals[f[0]*3+2]); n0.normalize();
+          n1 = Vector3d(normals[f[1]*3], normals[f[1]*3+1], normals[f[1]*3+2]); n1.normalize();
+          n2 = Vector3d(normals[f[2]*3], normals[f[2]*3+1], normals[f[2]*3+2]); n2.normalize();
+        } else {
+          n0 = mesh.vertex_normal(f[0]);
+          n1 = mesh.vertex_normal(f[1]);
+          n2 = mesh.vertex_normal(f[2]);
+        }
 
-        glShadeModel(GL_SMOOTH);
+        if(has_texture) {
+          auto tf = mesh.face_texture(face_i);
+          auto t0 = mesh.texture_coords(tf[0]), t1 = mesh.texture_coords(tf[1]), t2 = mesh.texture_coords(tf[2]);
 
-        glBegin(GL_TRIANGLES);
+          glShadeModel(GL_SMOOTH);
 
-        //GLfloat face_color_0[] = {(n0[0]+1.0)*0.5, (n0[1]+1.0)*0.5, (n0[2]+1.0)*0.5, static_cast<float>(face_alpha)};
-        //glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, face_color_0);
-        glNormal3dv(n0.data());glVertex3f(v0[0], v0[1], v0[2]);
+          glBegin(GL_TRIANGLES);
 
-        //GLfloat face_color_1[] = {(n1[0]+1.0)*0.5, (n1[1]+1.0)*0.5, (n1[2]+1.0)*0.5, static_cast<float>(face_alpha)};
-        //glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, face_color_1);
-        glNormal3dv(n1.data());glVertex3f(v1[0], v1[1], v1[2]);
+          if(use_ao) set_material_with_ao( ao[f[0]] );
+          //GLfloat face_color_0[] = {(n0[0]+1.0)*0.5, (n0[1]+1.0)*0.5, (n0[2]+1.0)*0.5, static_cast<float>(face_alpha)};
+          //glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, face_color_0);
+          glNormal3dv(n0.data());glTexCoord2f(t0[0], 1.0-t0[1]);glVertex3f(v0[0], v0[1], v0[2]);
 
-        //GLfloat face_color_2[] = {(n2[0]+1.0)*0.5, (n2[1]+1.0)*0.5, (n2[2]+1.0)*0.5, static_cast<float>(face_alpha)};
-        //glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, face_color_2);
-        glNormal3dv(n2.data());glVertex3f(v2[0], v2[1], v2[2]);
-        glEnd();
+          if(use_ao) set_material_with_ao( ao[f[1]] );
+          //GLfloat face_color_1[] = {(n1[0]+1.0)*0.5, (n1[1]+1.0)*0.5, (n1[2]+1.0)*0.5, static_cast<float>(face_alpha)};
+          //glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, face_color_1);
+          glNormal3dv(n1.data());glTexCoord2f(t1[0], 1.0-t1[1]);glVertex3f(v1[0], v1[1], v1[2]);
+
+          if(use_ao) set_material_with_ao( ao[f[2]] );
+          //GLfloat face_color_2[] = {(n2[0]+1.0)*0.5, (n2[1]+1.0)*0.5, (n2[2]+1.0)*0.5, static_cast<float>(face_alpha)};
+          //glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, face_color_2);
+          glNormal3dv(n2.data());glTexCoord2f(t2[0], 1.0-t2[1]);glVertex3f(v2[0], v2[1], v2[2]);
+          glEnd();
+        } else {
+          glShadeModel(GL_SMOOTH);
+
+          glBegin(GL_TRIANGLES);
+
+          if(use_ao) set_material_with_ao( ao[f[0]] );
+          //GLfloat face_color_0[] = {(n0[0]+1.0)*0.5, (n0[1]+1.0)*0.5, (n0[2]+1.0)*0.5, static_cast<float>(face_alpha)};
+          //glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, face_color_0);
+          glNormal3dv(n0.data());glVertex3f(v0[0], v0[1], v0[2]);
+
+          if(use_ao) set_material_with_ao( ao[f[1]] );
+          //GLfloat face_color_1[] = {(n1[0]+1.0)*0.5, (n1[1]+1.0)*0.5, (n1[2]+1.0)*0.5, static_cast<float>(face_alpha)};
+          //glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, face_color_1);
+          glNormal3dv(n1.data());glVertex3f(v1[0], v1[1], v1[2]);
+
+          if(use_ao) set_material_with_ao( ao[f[2]] );
+          //GLfloat face_color_2[] = {(n2[0]+1.0)*0.5, (n2[1]+1.0)*0.5, (n2[2]+1.0)*0.5, static_cast<float>(face_alpha)};
+          //glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, face_color_2);
+          glNormal3dv(n2.data());glVertex3f(v2[0], v2[1], v2[2]);
+          glEnd();
+        }
       }
       glDisable(GL_CULL_FACE);
+      if(has_texture) {
+        glDisable(GL_TEXTURE_2D);
+      }
       break;
     }
     case Normal: {
