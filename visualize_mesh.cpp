@@ -47,6 +47,7 @@ po::variables_map parse_cli_args(int argc, char** argv) {
     ("mesh", po::value<string>()->default_value(""), "Mesh to render.")
     ("init_bs_path", po::value<string>()->default_value(""), "Initial blendshapes path.")
     ("faces", po::value<string>(), "Faces to render")
+    ("ambient_occlusion", po::value<string>(), "AO for the mesh.")
     ("texture", po::value<string>(), "Texture for the mesh.")
     ("normals", po::value<string>(), "Customized normals for the mesh.")
     ("no_subdivision", "Perform subdivision for mesh")
@@ -133,6 +134,9 @@ void VisualizeReconstructionResult(
   if(extra_options.count("normals")) {
     visualizer.SetNormals(LoadFloats(extra_options.at("normals")));
   }
+  if(extra_options.count("ambient_occlusion")) {
+    visualizer.SetAmbientOcclusion(LoadFloats(extra_options.at("ambient_occlusion")));
+  }
   if(extra_options.count("faces")) {
     auto hair_region_indices_quad = LoadIndices(extra_options.at("faces"));
     vector<int> hair_region_indices;
@@ -159,6 +163,8 @@ void VisualizeReconstructionResult(
   }
 
   QImage output_img = visualizer.Render(true);
+  cout << "Writing output image to " << output_image_filename << endl;
+  cout << "Image size: " << output_img.width() << 'x' << output_img.height() << endl;
   output_img.save(output_image_filename.c_str());
 }
 
@@ -175,6 +181,7 @@ int main(int argc, char** argv) {
   if(vm.count("texture")) extra_options.insert({"texture", vm["texture"].as<string>()});
   if(vm.count("settings")) extra_options.insert({"settings", vm["settings"].as<string>()});
   if(vm.count("faces")) extra_options.insert({"faces", vm["faces"].as<string>()});
+  if(vm.count("ambient_occlusion")) extra_options.insert({"ambient_occlusion", vm["ambient_occlusion"].as<string>()});
   if(vm.count("init")) extra_options.insert({"init", "true"});
 
   VisualizeReconstructionResult(vm["img"].as<string>(),

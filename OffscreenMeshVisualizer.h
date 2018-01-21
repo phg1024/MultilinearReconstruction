@@ -81,6 +81,9 @@ public:
   void SetNormals(const vector<float>& ns) {
     normals = ns;
   }
+  void SetAmbientOcclusion(const vector<float>& ao_in) {
+    ao = ao_in;
+  }
 
   void SetRenderMode(RenderMode mode_in) {
     render_mode = mode_in;
@@ -114,6 +117,7 @@ private:
 
   mutable vector<int> faces_to_render;
   mutable vector<float> normals;
+  mutable vector<float> ao;
 
   bool index_encoded;
   bool lighting_enabled;

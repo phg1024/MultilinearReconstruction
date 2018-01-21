@@ -400,6 +400,18 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
 #endif
 
       bool use_customized_normals = !normals.empty();
+      bool use_ao = !ao.empty();
+      cout << "using ao: " << (use_ao?"yes":"no") << endl;
+      auto set_material_with_ao = [&](float ao_value) {
+        auto& mat_diffuse_json = rendering_settings["material"]["diffuse"];
+        GLfloat mat_diffuse[] = {
+          float(mat_diffuse_json[0]) * pow(ao_value, static_cast<double>(rendering_settings["ao_power"])),
+          float(mat_diffuse_json[1]) * pow(ao_value, static_cast<double>(rendering_settings["ao_power"])),
+          float(mat_diffuse_json[2]) * pow(ao_value, static_cast<double>(rendering_settings["ao_power"])),
+          float(mat_diffuse_json[3])
+        };
+        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mat_diffuse);
+      };
 
       for(int face_i : faces_to_render) {
         auto normal_i = mesh.normal(face_i);
@@ -425,14 +437,17 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
 
           glBegin(GL_TRIANGLES);
 
+          if(use_ao) set_material_with_ao( ao[f[0]] );
           //GLfloat face_color_0[] = {(n0[0]+1.0)*0.5, (n0[1]+1.0)*0.5, (n0[2]+1.0)*0.5, static_cast<float>(face_alpha)};
           //glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, face_color_0);
           glNormal3dv(n0.data());glTexCoord2f(t0[0], 1.0-t0[1]);glVertex3f(v0[0], v0[1], v0[2]);
 
+          if(use_ao) set_material_with_ao( ao[f[1]] );
           //GLfloat face_color_1[] = {(n1[0]+1.0)*0.5, (n1[1]+1.0)*0.5, (n1[2]+1.0)*0.5, static_cast<float>(face_alpha)};
           //glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, face_color_1);
           glNormal3dv(n1.data());glTexCoord2f(t1[0], 1.0-t1[1]);glVertex3f(v1[0], v1[1], v1[2]);
 
+          if(use_ao) set_material_with_ao( ao[f[2]] );
           //GLfloat face_color_2[] = {(n2[0]+1.0)*0.5, (n2[1]+1.0)*0.5, (n2[2]+1.0)*0.5, static_cast<float>(face_alpha)};
           //glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, face_color_2);
           glNormal3dv(n2.data());glTexCoord2f(t2[0], 1.0-t2[1]);glVertex3f(v2[0], v2[1], v2[2]);
@@ -442,14 +457,17 @@ pair<QImage, vector<float>> OffscreenMeshVisualizer::RenderWithDepth(bool multi_
 
           glBegin(GL_TRIANGLES);
 
+          if(use_ao) set_material_with_ao( ao[f[0]] );
           //GLfloat face_color_0[] = {(n0[0]+1.0)*0.5, (n0[1]+1.0)*0.5, (n0[2]+1.0)*0.5, static_cast<float>(face_alpha)};
           //glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, face_color_0);
           glNormal3dv(n0.data());glVertex3f(v0[0], v0[1], v0[2]);
 
+          if(use_ao) set_material_with_ao( ao[f[1]] );
           //GLfloat face_color_1[] = {(n1[0]+1.0)*0.5, (n1[1]+1.0)*0.5, (n1[2]+1.0)*0.5, static_cast<float>(face_alpha)};
           //glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, face_color_1);
           glNormal3dv(n1.data());glVertex3f(v1[0], v1[1], v1[2]);
 
+          if(use_ao) set_material_with_ao( ao[f[2]] );
           //GLfloat face_color_2[] = {(n2[0]+1.0)*0.5, (n2[1]+1.0)*0.5, (n2[2]+1.0)*0.5, static_cast<float>(face_alpha)};
           //glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, face_color_2);
           glNormal3dv(n2.data());glVertex3f(v2[0], v2[1], v2[2]);
