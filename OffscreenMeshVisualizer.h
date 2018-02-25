@@ -53,7 +53,7 @@ public:
       const string home_directory = QDir::homePath().toStdString();
       cout << "Home dir: " << home_directory << endl;
 
-      ifstream fin(home_directory + "/Data/Settings/mesh_vis.json");
+      ifstream fin(home_directory + "/Data/Settings/blendshape_vis_ao.json");
       fin >> rendering_settings;
     }
   }
