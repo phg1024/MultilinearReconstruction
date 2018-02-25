@@ -392,11 +392,14 @@ template <typename Constraint>
 bool VideoReconstructor<Constraint>::Reconstruct() {
   cout << "Reconstruction begins..." << endl;
 
+  const string home_directory = QDir::homePath().toStdString();
+  cout << "Home dir: " << home_directory << endl;
+
   // Preparing necessary stuff
   const int tex_size = 2048;
-  const string albedo_index_map_filename("/home/phg/Data/Multilinear/albedo_index.png");
-  const string albedo_pixel_map_filename("/home/phg/Data/Multilinear/albedo_pixel.png");
-  const string valid_faces_indices_filename("/home/phg/Data/Multilinear/face_region_indices.txt");
+  const string albedo_index_map_filename(home_directory + "/Data/Multilinear/albedo_index.png");
+  const string albedo_pixel_map_filename(home_directory + "/Data/Multilinear/albedo_pixel.png");
+  const string valid_faces_indices_filename(home_directory + "/Data/Multilinear/face_region_indices.txt");
 
   QImage albedo_index_map;
   // Get the albedo index map
@@ -1162,7 +1165,7 @@ bool VideoReconstructor<Constraint>::Reconstruct() {
   {
       json temp_opt_settings;
       {
-        ifstream fin("/home/phg/Data/Settings/temp_opt_settings.json");
+        ifstream fin(home_directory + "/Data/Settings/temp_opt_settings.json");
         fin >> temp_opt_settings;
       }
       // Similar to joint recon, but we optimize for individual head poses

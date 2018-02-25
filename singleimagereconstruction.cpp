@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QDir>
 #include <GL/freeglut_std.h>
 
 #include "ioutilities.h"
@@ -76,12 +77,15 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  const string model_filename("/home/phg/Data/Multilinear/blendshape_core.tensor");
-  const string id_prior_filename("/home/phg/Data/Multilinear/blendshape_u_0_aug.tensor");
-  const string exp_prior_filename("/home/phg/Data/Multilinear/blendshape_u_1_aug.tensor");
-  const string template_mesh_filename("/home/phg/Data/Multilinear/template.obj");
-  const string contour_points_filename("/home/phg/Data/Multilinear/contourpoints.txt");
-  const string landmarks_filename("/home/phg/Data/Multilinear/landmarks_73.txt");
+  const string home_directory = QDir::homePath().toStdString();
+  cout << "Home dir: " << home_directory << endl;
+
+  const string model_filename(home_directory + "/Data/Multilinear/blendshape_core.tensor");
+  const string id_prior_filename(home_directory + "/Data/Multilinear/blendshape_u_0_aug.tensor");
+  const string exp_prior_filename(home_directory + "/Data/Multilinear/blendshape_u_1_aug.tensor");
+  const string template_mesh_filename(home_directory + "/Data/Multilinear/template.obj");
+  const string contour_points_filename(home_directory + "/Data/Multilinear/contourpoints.txt");
+  const string landmarks_filename(home_directory + "/Data/Multilinear/landmarks_73.txt");
 
 
   BasicMesh mesh(template_mesh_filename);

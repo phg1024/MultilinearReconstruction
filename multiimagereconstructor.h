@@ -311,6 +311,10 @@ protected:
       imgw *= scale;
       imgh *= scale;
     }
+
+    const string home_directory = QDir::homePath().toStdString();
+    cout << "Home dir: " << home_directory << endl;
+
     OffscreenMeshVisualizer visualizer(imgw, imgh);
 
     // Always compute normal
@@ -324,7 +328,7 @@ protected:
     visualizer.SetMeshRotationTranslation(param_sets[i].model.R, param_sets[i].model.T);
     visualizer.SetIndexEncoded(false);
     visualizer.SetEnableLighting(true);
-    visualizer.LoadRenderingSettings("/home/phg/Data/Settings/blendshape_vis_ao.json");
+    visualizer.LoadRenderingSettings(home_directory + "/Data/Settings/blendshape_vis_ao.json");
 
     QImage img = visualizer.Render(true);
     fs::path image_path = fs::path(image_filenames[i]);
@@ -381,11 +385,14 @@ template <typename Constraint>
 bool MultiImageReconstructor<Constraint>::Reconstruct() {
   cout << "Reconstruction begins..." << endl;
 
+  const string home_directory = QDir::homePath().toStdString();
+  cout << "Home dir: " << home_directory << endl;
+
   // Preparing necessary stuff
   const int tex_size = 2048;
-  const string albedo_index_map_filename("/home/phg/Data/Multilinear/albedo_index.png");
-  const string albedo_pixel_map_filename("/home/phg/Data/Multilinear/albedo_pixel.png");
-  const string valid_faces_indices_filename("/home/phg/Data/Multilinear/face_region_indices.txt");
+  const string albedo_index_map_filename(home_directory + "/Data/Multilinear/albedo_index.png");
+  const string albedo_pixel_map_filename(home_directory + "/Data/Multilinear/albedo_pixel.png");
+  const string valid_faces_indices_filename(home_directory + "/Data/Multilinear/face_region_indices.txt");
 
   QImage albedo_index_map;
   // Get the albedo index map

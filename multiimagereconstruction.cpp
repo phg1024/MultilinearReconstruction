@@ -19,15 +19,18 @@ int main(int argc, char *argv[]) {
   namespace fs = boost::filesystem;
   namespace po = boost::program_options;
 
+  const string home_directory = QDir::homePath().toStdString();
+  cout << "Home dir: " << home_directory << endl;
+
   po::options_description desc("Options");
   desc.add_options()
   ("settings_file", po::value<string>()->required(), "Input settings file")
-  ("model_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/blendshape_core.tensor"), "Multilinear model file")
-  ("id_prior_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/blendshape_u_0_aug.tensor"), "Identity prior file")
-  ("exp_prior_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/blendshape_u_1_aug.tensor"), "Expression prior file")
-  ("template_mesh_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/template.obj"), "Template mesh file")
-  ("contour_points_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/contourpoints.txt"), "Contour points file")
-  ("landmarks_file", po::value<string>()->default_value("/home/phg/Data/Multilinear/landmarks_73.txt"), "Landmarks file")
+  ("model_file", po::value<string>()->default_value(home_directory + "/Data/Multilinear/blendshape_core.tensor"), "Multilinear model file")
+  ("id_prior_file", po::value<string>()->default_value(home_directory + "/Data/Multilinear/blendshape_u_0_aug.tensor"), "Identity prior file")
+  ("exp_prior_file", po::value<string>()->default_value(home_directory + "/Data/Multilinear/blendshape_u_1_aug.tensor"), "Expression prior file")
+  ("template_mesh_file", po::value<string>()->default_value(home_directory + "/Data/Multilinear/template.obj"), "Template mesh file")
+  ("contour_points_file", po::value<string>()->default_value(home_directory + "/Data/Multilinear/contourpoints.txt"), "Contour points file")
+  ("landmarks_file", po::value<string>()->default_value(home_directory + "/Data/Multilinear/landmarks_73.txt"), "Landmarks file")
   ("direct_multi_recon", "Use direct multi-recon")
   ("no_selection", "Disable selection")
   ("no_failure_detection", "Disable feature points failure detection")

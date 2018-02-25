@@ -10,6 +10,8 @@
 #include <eigen3/Eigen/Geometry>
 #include <eigen3/Eigen/LU>
 
+#include <QDir>
+
 #include "ceres/ceres.h"
 
 #include <opencv2/opencv.hpp>
@@ -39,6 +41,9 @@ namespace po = boost::program_options;
 using namespace Eigen;
 
 po::variables_map parse_cli_args(int argc, char** argv) {
+  const string home_directory = QDir::homePath().toStdString();
+  cout << "Home dir: " << home_directory << endl;
+
   po::options_description desc("Options");
   desc.add_options()
     ("help", "Print help messages")
@@ -53,7 +58,7 @@ po::variables_map parse_cli_args(int argc, char** argv) {
     ("normals", po::value<string>(), "Customized normals for the mesh.")
     ("no_subdivision", "Perform subdivision for mesh")
     ("init", "Is the initial multi-recon")
-    ("settings", po::value<string>()->default_value("/home/phg/Data/Settings/mesh_vis.json"), "Rendering settings")
+    ("settings", po::value<string>()->default_value(home_directory + "/Data/Settings/mesh_vis.json"), "Rendering settings")
     ("output", po::value<string>()->required(), "Output image file.");
   po::variables_map vm;
 

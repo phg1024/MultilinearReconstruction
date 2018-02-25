@@ -7,6 +7,7 @@
 #include "basicmesh.h"
 #include "parameters.h"
 
+#include <QDir>
 #include <QImage>
 #include <QOpenGLContext>
 #include <QOpenGLFramebufferObject>
@@ -49,7 +50,10 @@ public:
    : width(width), height(height), index_encoded(true), lighting_enabled(false) {
     // Load rendering settings
     {
-      ifstream fin("/home/phg/Data/Settings/mesh_vis.json");
+      const string home_directory = QDir::homePath().toStdString();
+      cout << "Home dir: " << home_directory << endl;
+
+      ifstream fin(home_directory + "/Data/Settings/mesh_vis.json");
       fin >> rendering_settings;
     }
   }
