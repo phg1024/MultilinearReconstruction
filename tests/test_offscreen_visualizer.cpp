@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QDir>
 #include "../OffscreenMeshVisualizer.h"
 #include "../multilinearmodel.h"
 #include "../basicmesh.h"
