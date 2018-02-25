@@ -551,6 +551,40 @@ struct IdentityCostFunction_analytic : public ceres::CostFunction {
   double weight;
 };
 
+struct ExpressionCostFunction {
+  ExpressionCostFunction(const MultilinearModel &model,
+                         const Constraint2D &constraint,
+                         int params_length,
+                         const glm::dmat4 &Mview,
+                         const CameraParameters &cam_params)
+    : model(model), constraint(constraint), params_length(params_length),
+      Mview(Mview), cam_params(cam_params) { }
+
+  bool operator()(const double *const *wexp, double *residual) const {
+    VectorXd wexp_vec = Map<const VectorXd>(wexp[0], params_length).eval();
+
+    // Apply the weight vector to the model
+    model.UpdateTMWithTM0(wexp_vec);
+
+    // Project the point to image plane
+    auto tm = model.GetTM();
+    glm::dvec3 p(tm[0], tm[1], tm[2]);
+    //cout << p.x << ", " << p.y << ", " << p.z << endl;
+    glm::dvec3 q = ProjectPoint(p, Mview, cam_params);
+
+    // Compute residual
+    residual[0] =
+      l2_norm(glm::dvec2(q.x, q.y), constraint.data) * constraint.weight;
+    return true;
+  }
+
+  mutable MultilinearModel model;
+  Constraint2D constraint;
+  int params_length;
+  glm::dmat4 Mview;
+  CameraParameters cam_params;
+};
+
 struct ExpressionCostFunction_analytic : public ceres::CostFunction {
   ExpressionCostFunction_analytic(const MultilinearModel &model,
                                   const Constraint2D &constraint,

@@ -19,6 +19,7 @@ using namespace Eigen;
 #include "common.h"
 #include "constraints.h"
 #include "costfunctions.h"
+#include "meshvisualizer.h"
 #include "multilinearmodel.h"
 #include "parameters.h"
 #include "statsutils.h"
