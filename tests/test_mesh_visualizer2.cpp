@@ -12,7 +12,7 @@
 
 int main(int argc, char** argv) {
   QApplication a(argc, argv);
-  const string home_directory = QDir::homePath();
+  const string home_directory = QDir::homePath().toStdString();
 
   auto recon_results = LoadReconstructionResult(argv[1]);
 
