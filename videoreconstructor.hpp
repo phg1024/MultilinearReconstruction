@@ -33,7 +33,7 @@
 #include "boost/filesystem/path.hpp"
 namespace fs = boost::filesystem;
 
-#include "third_party/json/src/json.hpp"
+#include "nlohmann/json.hpp"
 using json = nlohmann::json;
 
 

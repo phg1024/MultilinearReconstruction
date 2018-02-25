@@ -45,6 +45,7 @@ po::variables_map parse_cli_args(int argc, char** argv) {
     ("img", po::value<string>()->required(), "Background iamge.")
     ("res", po::value<string>()->required(), "Reconstruction information.")
     ("mesh", po::value<string>()->default_value(""), "Mesh to render.")
+    ("output_mesh", po::value<string>()->default_value(""), "Saved mesh filename.")
     ("init_bs_path", po::value<string>()->default_value(""), "Initial blendshapes path.")
     ("faces", po::value<string>(), "Faces to render")
     ("ambient_occlusion", po::value<string>(), "AO for the mesh.")
@@ -117,6 +118,8 @@ void VisualizeReconstructionResult(
     mesh.ComputeNormals();
   }
 
+  if(extra_options.count("output_mesh")) mesh.Write(extra_options.at("output_mesh"));
+
   OffscreenMeshVisualizer visualizer(imgw, imgh);
 
   visualizer.SetMVPMode(OffscreenMeshVisualizer::CamPerspective);
@@ -183,6 +186,7 @@ int main(int argc, char** argv) {
   if(vm.count("faces")) extra_options.insert({"faces", vm["faces"].as<string>()});
   if(vm.count("ambient_occlusion")) extra_options.insert({"ambient_occlusion", vm["ambient_occlusion"].as<string>()});
   if(vm.count("init")) extra_options.insert({"init", "true"});
+  if(vm.count("output_mesh")) extra_options.insert({"output_mesh", vm["output_mesh"].as<string>()});
 
   VisualizeReconstructionResult(vm["img"].as<string>(),
                                 vm["res"].as<string>(),

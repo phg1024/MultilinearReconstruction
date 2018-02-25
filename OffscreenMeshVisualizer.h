@@ -13,7 +13,7 @@
 #include <QOffscreenSurface>
 
 #include <boost/timer/timer.hpp>
-#include "third_party/json/src/json.hpp"
+#include "nlohmann/json.hpp"
 using json = nlohmann::json;
 
 namespace ColorEncoding {

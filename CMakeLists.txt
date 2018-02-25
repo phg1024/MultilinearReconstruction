@@ -90,6 +90,11 @@ include(ACGCommon)
 include_directories("/usr/local/include")
 link_libraries(OpenMeshCore OpenMeshTools)
 
+# json
+message(STATUS "Found json cpp")
+message(STATUS "${CMAKE_CURRENT_LIST_DIR}/third_party/json/include")
+include_directories("${CMAKE_CURRENT_LIST_DIR}/third_party/json/include")
+
 # Targets
 add_library(multilinearmodel multilinearmodel.cpp)
 target_link_libraries(multilinearmodel

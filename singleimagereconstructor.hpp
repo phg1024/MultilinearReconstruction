@@ -23,6 +23,7 @@ using namespace Eigen;
 #include "parameters.h"
 #include "statsutils.h"
 #include "utils.hpp"
+#include "meshvisualizer.h"
 
 #include "boost/timer/timer.hpp"
 
@@ -153,7 +154,7 @@ public:
   }
 
   void ApplyWeights() {
-    model.ApplyWeights(params_model.Wid, params_model.Wexp);    
+    model.ApplyWeights(params_model.Wid, params_model.Wexp);
   }
 
 protected:
@@ -869,6 +870,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForFocalLength() {
   params_cam.focal_length = new_f;
 }
 
+#if 0
 template<typename Constraint>
 void SingleImageReconstructor<Constraint>::OptimizeForExpression(
   int iteration) {
@@ -950,6 +952,7 @@ void SingleImageReconstructor<Constraint>::OptimizeForExpression(
                << params.transpose())
   params_model.Wexp = params;
 }
+#endif
 
 template<typename Constraint>
 void SingleImageReconstructor<Constraint>::OptimizeForExpression_FACS(
