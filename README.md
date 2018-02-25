@@ -6,16 +6,16 @@
 Some relevant data could be downloaded [here](https://goo.gl/sEB9Dk).
 
 ## Dependencies
-* Boost
-* ceres-solver
-* OpenCV
+* Boost 1.63
+* ceres-solver 1.12.0
+* OpenCV 3.4
 * freeglut
 * GLEW
-* Eigen
+* Eigen 3.3.0
 * Intel MKL
-* SuiteSparse
+* SuiteSparse 4.5.3
 * Qt5
-* OpenMesh
+* OpenMesh 6.3
 * PhGLib: https://github.com/phg1024/PhGLib.git
 
 ## Compile
