@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QDir>
 #include <GL/freeglut_std.h>
 #include "../meshvisualizer2.h"
 #include "../multilinearmodel.h"
@@ -11,17 +12,18 @@
 
 int main(int argc, char** argv) {
   QApplication a(argc, argv);
+  const string home_directory = QDir::homePath();
 
   auto recon_results = LoadReconstructionResult(argv[1]);
 
-  MultilinearModel model("/home/phg/Data/Multilinear/blendshape_core.tensor");
+  MultilinearModel model(home_directory + "/Data/Multilinear/blendshape_core.tensor");
   MultilinearModelPrior model_prior;
-  model_prior.load("/home/phg/Data/Multilinear/blendshape_u_0_aug.tensor",
-                   "/home/phg/Data/Multilinear/blendshape_u_1_aug.tensor");
+  model_prior.load(home_directory + "/Data/Multilinear/blendshape_u_0_aug.tensor",
+                   home_directory + "/Data/Multilinear/blendshape_u_1_aug.tensor");
 
 
   model.ApplyWeights(recon_results.params_model.Wid, recon_results.params_model.Wexp);
-  BasicMesh mesh0("/home/phg/Data/Multilinear/template.obj");
+  BasicMesh mesh0(home_directory + "/Data/Multilinear/template.obj");
   mesh0.UpdateVertices(model.GetTM());
   mesh0.ComputeNormals();
 
